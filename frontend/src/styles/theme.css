@@ -1,0 +1,394 @@
+:root {
+  --app-bg: #0b1020;
+  --app-surface: rgba(255, 255, 255, 0.72);
+  --app-surface-strong: rgba(255, 255, 255, 0.9);
+  --app-border: rgba(255, 255, 255, 0.24);
+  --app-text: #15203b;
+  --app-text-soft: #60708f;
+  --app-primary: #4f7cff;
+  --app-secondary: #7b61ff;
+  --app-accent: #00c2a8;
+  --app-shadow: 0 20px 60px rgba(15, 23, 42, 0.18);
+  --app-radius-xl: 28px;
+  --app-radius-lg: 22px;
+  --app-radius-md: 16px;
+}
+
+html,
+body,
+#app {
+  min-height: 100%;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: Inter, "PingFang SC", "Microsoft YaHei", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: var(--app-text);
+  background:
+    radial-gradient(circle at 15% 20%, rgba(79, 124, 255, 0.22), transparent 22%),
+    radial-gradient(circle at 82% 14%, rgba(0, 194, 168, 0.18), transparent 24%),
+    radial-gradient(circle at 78% 80%, rgba(123, 97, 255, 0.18), transparent 20%),
+    linear-gradient(135deg, #eef4ff 0%, #eef2ff 48%, #f4f7fb 100%);
+  overflow-x: hidden;
+}
+
+body::before,
+body::after {
+  content: '';
+  position: fixed;
+  inset: auto;
+  width: 34vw;
+  height: 34vw;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 0;
+  filter: blur(8px);
+  opacity: 0.45;
+}
+
+body::before {
+  top: -10vw;
+  right: -8vw;
+  background: radial-gradient(circle, rgba(79, 124, 255, 0.55), rgba(79, 124, 255, 0.04) 65%, transparent 70%);
+  animation: floatOrb 16s ease-in-out infinite;
+}
+
+body::after {
+  bottom: -12vw;
+  left: -10vw;
+  background: radial-gradient(circle, rgba(0, 194, 168, 0.34), rgba(123, 97, 255, 0.05) 65%, transparent 72%);
+  animation: floatOrb 20s ease-in-out infinite reverse;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+a {
+  color: inherit;
+}
+
+.glass-panel {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  box-shadow: var(--app-shadow);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+.campus-page {
+  position: relative;
+}
+
+.campus-page::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(79, 124, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(79, 124, 255, 0.03) 1px, transparent 1px);
+  background-size: 28px 28px;
+  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.42), transparent 65%);
+}
+
+.brand-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 22px;
+}
+
+.section-title h2 {
+  margin: 0;
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: #13213f;
+}
+
+.section-title p {
+  margin: 8px 0 0;
+  color: var(--app-text-soft);
+}
+
+.page-fade-slide-enter-active,
+.page-fade-slide-leave-active {
+  transition: opacity 0.28s ease, transform 0.28s ease;
+}
+
+.page-fade-slide-enter-from,
+.page-fade-slide-leave-to {
+  opacity: 0;
+  transform: translateY(12px);
+}
+
+.el-card,
+.el-table,
+.el-dialog,
+.el-drawer,
+.el-dropdown-menu,
+.el-popover {
+  border-radius: var(--app-radius-md) !important;
+}
+
+.el-card {
+  border: 1px solid rgba(148, 163, 184, 0.18) !important;
+  box-shadow: 0 18px 46px rgba(15, 23, 42, 0.08) !important;
+}
+
+.el-button--primary {
+  background: linear-gradient(135deg, var(--app-primary), var(--app-secondary)) !important;
+  border: none !important;
+  box-shadow: 0 12px 24px rgba(79, 124, 255, 0.26);
+}
+
+.el-input__wrapper,
+.el-select__wrapper,
+.el-textarea__inner,
+.el-input-number,
+.el-date-editor.el-input,
+.el-date-editor.el-input__wrapper {
+  border-radius: 14px !important;
+  box-shadow: 0 0 0 1px rgba(148, 163, 184, 0.18) inset !important;
+}
+
+.el-table {
+  overflow: hidden;
+}
+
+.el-table th.el-table__cell {
+  background: rgba(79, 124, 255, 0.06) !important;
+  color: #334155;
+}
+
+.el-main {
+  position: relative;
+  z-index: 1;
+}
+
+.snack-page,
+.supermarket-page,
+.tutor-page,
+.secondhand-page,
+.driving-school-page,
+.study-material-page,
+.forum-page,
+.users-page,
+.orders-page,
+.driving-schools-page {
+  position: relative;
+  animation: pageEnter 0.45s ease;
+}
+
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 18px;
+  padding: 24px 26px;
+  border-radius: var(--app-radius-xl);
+  border: 1px solid rgba(255, 255, 255, 0.26);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.56));
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.08);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.page-header h2,
+.card-header > span:first-child,
+.card-header > div:first-child > span:first-child {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  color: #13213f;
+}
+
+.page-header p {
+  margin: 8px 0 0;
+  color: var(--app-text-soft);
+}
+
+.filter-card,
+.category-card,
+.dashboard-panel,
+.users-page > .el-card,
+.orders-page > .el-card,
+.forum-page > .el-card,
+.secondhand-page > .el-card,
+.driving-schools-page > .el-card,
+.study-material-page > .el-card,
+.supermarket-page > .el-row > .el-col > .category-card,
+.admin-main .el-card {
+  background: rgba(255, 255, 255, 0.78) !important;
+  border: 1px solid rgba(255, 255, 255, 0.28) !important;
+  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.08) !important;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  min-height: 44px;
+}
+
+.filter-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.snack-card,
+.product-card,
+.tutor-card,
+.school-card,
+.post-card {
+  overflow: hidden;
+  transition: transform 0.24s ease, box-shadow 0.24s ease !important;
+}
+
+.snack-card:hover,
+.product-card:hover,
+.tutor-card:hover,
+.school-card:hover,
+.post-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 24px 56px rgba(15, 23, 42, 0.12) !important;
+}
+
+.post-card,
+.tutor-card,
+.school-card,
+.product-card,
+.snack-card {
+  border-radius: 22px !important;
+}
+
+.post-header,
+.detail-header,
+.stat-content,
+.order-items,
+.school-header,
+.school-actions,
+.snack-footer {
+  position: relative;
+  z-index: 1;
+}
+
+.post-title,
+.detail-title,
+.stat-value,
+.school-header h3,
+.snack-info h3 {
+  color: #12213e;
+}
+
+.post-content,
+.detail-content,
+.school-description,
+.author-info,
+.comment-content,
+.order-items span,
+.stat-label,
+.merchant,
+.description {
+  color: var(--app-text-soft) !important;
+}
+
+.post-list,
+.snack-list,
+.school-list {
+  position: relative;
+}
+
+.post-list::before,
+.snack-list::before,
+.school-list::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: 28px;
+}
+
+.el-table {
+  background: rgba(255, 255, 255, 0.78) !important;
+}
+
+.el-table tr,
+.el-table .el-table__row {
+  transition: background-color 0.2s ease;
+}
+
+.el-table .el-table__row:hover > td.el-table__cell {
+  background: rgba(79, 124, 255, 0.05) !important;
+}
+
+.el-dialog,
+.el-drawer {
+  background: rgba(255, 255, 255, 0.9) !important;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.el-empty {
+  padding: 42px 0;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.5);
+}
+
+@keyframes pageEnter {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes floatOrb {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(18px, 26px, 0) scale(1.06);
+  }
+}
+
+@media (max-width: 768px) {
+  body::before,
+  body::after {
+    width: 70vw;
+    height: 70vw;
+  }
+
+  .section-title h2 {
+    font-size: 24px;
+  }
+}

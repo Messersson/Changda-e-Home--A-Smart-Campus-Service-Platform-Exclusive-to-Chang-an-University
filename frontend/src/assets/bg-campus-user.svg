@@ -1,0 +1,23 @@
+<svg width="1600" height="1000" viewBox="0 0 1600 1000" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1600" height="1000" fill="#EEF4FF"/>
+  <circle cx="152" cy="140" r="220" fill="#4F7CFF" fill-opacity="0.18"/>
+  <circle cx="1440" cy="180" r="260" fill="#7B61FF" fill-opacity="0.14"/>
+  <circle cx="1326" cy="854" r="260" fill="#00C2A8" fill-opacity="0.12"/>
+  <path d="M0 720C233 648 378 625 573 648C789 673 929 804 1116 822C1278 838 1409 778 1600 696V1000H0V720Z" fill="#DCE7FF"/>
+  <path d="M0 792C206 742 366 729 543 746C714 762 860 850 1040 870C1225 891 1387 850 1600 745V1000H0V792Z" fill="#C6D8FF" fill-opacity="0.92"/>
+  <rect x="176" y="458" width="356" height="227" rx="28" fill="white" fill-opacity="0.78" stroke="#D9E4FF" stroke-width="2"/>
+  <rect x="224" y="515" width="124" height="20" rx="10" fill="#DCE7FF"/>
+  <rect x="224" y="559" width="200" height="14" rx="7" fill="#EAF1FF"/>
+  <rect x="224" y="590" width="154" height="14" rx="7" fill="#EAF1FF"/>
+  <rect x="224" y="623" width="88" height="34" rx="17" fill="#4F7CFF" fill-opacity="0.16"/>
+  <rect x="590" y="330" width="402" height="254" rx="34" fill="#FFFFFF" fill-opacity="0.82" stroke="#D8E2FF" stroke-width="2"/>
+  <rect x="648" y="395" width="286" height="24" rx="12" fill="#D8E4FF"/>
+  <rect x="648" y="443" width="186" height="15" rx="7.5" fill="#EAF1FF"/>
+  <rect x="648" y="474" width="250" height="15" rx="7.5" fill="#EAF1FF"/>
+  <rect x="648" y="520" width="112" height="38" rx="19" fill="#7B61FF" fill-opacity="0.15"/>
+  <rect x="1070" y="492" width="314" height="193" rx="30" fill="#FFFFFF" fill-opacity="0.78" stroke="#D9E4FF" stroke-width="2"/>
+  <path d="M1119 630C1184 556 1247 556 1304 620C1340 661 1385 664 1435 622" stroke="#4F7CFF" stroke-width="16" stroke-linecap="round"/>
+  <circle cx="1126" cy="303" r="64" fill="#FFFFFF" fill-opacity="0.66" stroke="#D8E4FF" stroke-width="2"/>
+  <path d="M1126 267V339" stroke="#7B61FF" stroke-width="10" stroke-linecap="round"/>
+  <path d="M1090 303H1162" stroke="#7B61FF" stroke-width="10" stroke-linecap="round"/>
+</svg>
