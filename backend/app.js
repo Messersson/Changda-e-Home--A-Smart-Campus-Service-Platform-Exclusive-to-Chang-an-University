@@ -230,6 +230,10 @@ if (process.env.NODE_ENV !== 'test' && !startCluster()) {
   server = app.listen(PORT, () => {
     logger.info(`Server listening on port ${PORT}`);
   });
+  // 尝试建立数据库连接（不阻塞服务启动）
+  DatabaseAdapter.connect()
+    .then(() => logger.info('Database connected on startup'))
+    .catch((e) => logger.warn('Database connection failed on startup', { message: e && e.message }));
   // start monitor and schedule log cleanup
   try {
     monitor.startMonitoring(HEALTH_CHECK_INTERVAL);

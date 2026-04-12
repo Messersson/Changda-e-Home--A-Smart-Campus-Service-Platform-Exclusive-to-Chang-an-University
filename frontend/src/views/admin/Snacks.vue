@@ -11,7 +11,7 @@
         <el-table-column prop="id" label="ID" width="60" />
         <el-table-column prop="name" label="菜品名称" width="120" />
         <el-table-column prop="price" label="价格" width="80">
-          <template #default="{ row }">¥{{ row.price.toFixed(2) }}</template>
+          <template #default="{ row }">¥{{ Number(row.price ?? 0).toFixed(2) }}</template>
         </el-table-column>
         <el-table-column prop="merchant" label="商家" width="150" />
         <el-table-column prop="description" label="描述" min-width="200" show-overflow-tooltip />
@@ -90,7 +90,10 @@ const rules = {
 const loadSnacks = async () => {
   try {
     const res = await adminApi.getSnacks()
-    snacks.value = res.data
+    snacks.value = (Array.isArray(res.data) ? res.data : []).map(item => ({
+      ...item,
+      price: Number(item.price ?? 0)
+    }))
   } catch (error) {
     console.error('加载菜品列表失败:', error)
   }
@@ -104,7 +107,11 @@ const showAddDialog = () => {
 
 const showEditDialog = (snack) => {
   isEdit.value = true
-  form.value = { ...snack, status: snack.status === 'active' }
+  form.value = {
+    ...snack,
+    price: Number(snack.price ?? 0),
+    status: snack.status === 'active'
+  }
   dialogVisible.value = true
 }
 

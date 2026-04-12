@@ -224,12 +224,12 @@ CREATE TABLE IF NOT EXISTS forum_comments (
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='论坛评论表';
 
--- 插入初始管理员账号
-INSERT INTO users (student_id, email, password, name, major, grade, role, status) VALUES
+-- 插入初始管理员账号（遇到重复键则忽略）
+INSERT IGNORE INTO users (student_id, email, password, name, major, grade, role, status) VALUES
 ('2024000000', 'admin@chd.edu.cn', 'admin123', '管理员', '系统管理', '', 'admin', 'active');
 
--- 插入初始商品分类
-INSERT INTO supermarket_categories (name, icon, parent_id) VALUES
+-- 插入初始商品分类（遇到重复键则忽略）
+INSERT IGNORE INTO supermarket_categories (name, icon, parent_id) VALUES
 ('零食', '🍪', NULL),
 ('水果', '🍎', NULL),
 ('饮料', '🥤', NULL),
@@ -241,8 +241,8 @@ INSERT INTO supermarket_categories (name, icon, parent_id) VALUES
 ('碳酸饮料', '🥤', 3),
 ('茶饮咖啡', '☕', 3);
 
--- 插入初始商品
-INSERT INTO supermarket_products (name, category_id, price, spec, stock, image, description, status) VALUES
+-- 插入初始商品（遇到重复键则忽略）
+INSERT IGNORE INTO supermarket_products (name, category_id, price, spec, stock, image, description, status) VALUES
 ('乐事薯片原味', 4, 8.50, '70g', 50, '/uploads/supermarket1.jpg', '经典原味薯片', 'active'),
 ('奥利奥饼干', 4, 12.00, '133g', 35, '/uploads/supermarket2.jpg', '经典夹心饼干', 'active'),
 ('德芙巧克力', 5, 15.00, '80g', 28, '/uploads/supermarket3.jpg', '丝滑牛奶巧克力', 'active'),
@@ -260,7 +260,7 @@ INSERT INTO supermarket_products (name, category_id, price, spec, stock, image, 
 ('雀巢咖啡', 10, 4.50, '268ml', 45, '/uploads/supermarket15.jpg', '即饮咖啡', 'active');
 
 -- 插入初始小吃摊菜品
-INSERT INTO snacks (name, price, description, image, merchant, status) VALUES
+INSERT IGNORE INTO snacks (name, price, description, image, merchant, status) VALUES
 ('肉夹馍', 8.00, '正宗陕西肉夹馍，肥而不腻', '/uploads/snack1.jpg', '东门老王肉夹馍', 'active'),
 ('凉皮', 6.00, '西安特色凉皮，酸辣爽口', '/uploads/snack2.jpg', '东门老王肉夹馍', 'active'),
 ('煎饼果子', 7.00, '现做煎饼，加蛋加肠', '/uploads/snack3.jpg', '东门煎饼摊', 'active'),
@@ -268,6 +268,6 @@ INSERT INTO snacks (name, price, description, image, merchant, status) VALUES
 ('炸串', 2.00, '各种蔬菜肉类炸串，按串计价', '/uploads/snack5.jpg', '东门炸串摊', 'active');
 
 -- 插入初始驾校
-INSERT INTO driving_schools (name, address, phone, price, description, features, status) VALUES
+INSERT IGNORE INTO driving_schools (name, address, phone, price, description, features, status) VALUES
 ('长安驾校', '长安大学北门对面', '029-88888888', 2800, '校内合作驾校，通过率高', '["包过班", "周末练车", "校内接送"]', 'active'),
 ('平安驾校', '长安大学南门500米', '029-66666666', 2600, '老牌驾校，教练经验丰富', '["一对一教学", "练车时间灵活"]', 'active');

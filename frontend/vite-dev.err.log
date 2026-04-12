@@ -1,0 +1,10 @@
+[2m12:43:04[22m [31m[1m[vite][22m[39m Pre-transform error: At least one <template> or <script> is required in a single file component. C:/Users/piter/Desktop/长安大学校园服务平台/frontend/src/App.vue
+[2m12:43:05[22m [31m[1m[vite][22m[39m [31mInternal server error: At least one <template> or <script> is required in a single file component. C:/Users/piter/Desktop/长安大学校园服务平台/frontend/src/App.vue[39m
+  Plugin: [35mvite:vue[39m
+  File: [36mC:/Users/piter/Desktop/长安大学校园服务平台/frontend/src/App.vue[39m
+      at Object.parse$1 [as parse] (C:\Users\piter\Desktop\长安大学校园服务平台\frontend\node_modules\@vue\compiler-sfc\dist\compiler-sfc.cjs.js:1894:7)
+      at createDescriptor (file:///C:/Users/piter/Desktop/%E9%95%BF%E5%AE%89%E5%A4%A7%E5%AD%A6%E6%A0%A1%E5%9B%AD%E6%9C%8D%E5%8A%A1%E5%B9%B3%E5%8F%B0/frontend/node_modules/@vitejs/plugin-vue/dist/index.mjs:71:43)
+      at transformMain (file:///C:/Users/piter/Desktop/%E9%95%BF%E5%AE%89%E5%A4%A7%E5%AD%A6%E6%A0%A1%E5%9B%AD%E6%9C%8D%E5%8A%A1%E5%B9%B3%E5%8F%B0/frontend/node_modules/@vitejs/plugin-vue/dist/index.mjs:2421:34)
+      at TransformPluginContext.transform (file:///C:/Users/piter/Desktop/%E9%95%BF%E5%AE%89%E5%A4%A7%E5%AD%A6%E6%A0%A1%E5%9B%AD%E6%9C%8D%E5%8A%A1%E5%B9%B3%E5%8F%B0/frontend/node_modules/@vitejs/plugin-vue/dist/index.mjs:3053:16)
+      at PluginContainer.transform (file:///C:/Users/piter/Desktop/%E9%95%BF%E5%AE%89%E5%A4%A7%E5%AD%A6%E6%A0%A1%E5%9B%AD%E6%9C%8D%E5%8A%A1%E5%B9%B3%E5%8F%B0/frontend/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:49100:19)
+      at async loadAndTransform (file:///C:/Users/piter/Desktop/%E9%95%BF%E5%AE%89%E5%A4%A7%E5%AD%A6%E6%A0%A1%E5%9B%AD%E6%9C%8D%E5%8A%A1%E5%B9%B3%E5%8F%B0/frontend/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:51978:27)

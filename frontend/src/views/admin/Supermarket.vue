@@ -47,7 +47,7 @@
               </template>
             </el-table-column>
             <el-table-column prop="price" label="价格" width="80">
-              <template #default="{ row }">¥{{ row.price.toFixed(2) }}</template>
+              <template #default="{ row }">¥{{ Number(row.price ?? 0).toFixed(2) }}</template>
             </el-table-column>
             <el-table-column prop="spec" label="规格" width="100" />
             <el-table-column prop="stock" label="库存" width="80" />
@@ -198,7 +198,12 @@ const loadCategories = async () => {
 const loadProducts = async () => {
   try {
     const res = await adminApi.getSupermarketProducts({ categoryId: selectedCategory.value })
-    products.value = res.data
+    products.value = (Array.isArray(res.data) ? res.data : []).map(item => ({
+      ...item,
+      categoryId: item.categoryId == null ? null : Number(item.categoryId),
+      price: Number(item.price ?? 0),
+      stock: Number(item.stock ?? 0)
+    }))
   } catch (error) {
     console.error('加载商品列表失败:', error)
   }
@@ -246,7 +251,13 @@ const showProductDialog = () => {
 
 const showProductEditDialog = (product) => {
   isProductEdit.value = true
-  productForm.value = { ...product, status: product.status === 'active' }
+  productForm.value = {
+    ...product,
+    categoryId: product.categoryId == null ? null : Number(product.categoryId),
+    price: Number(product.price ?? 0),
+    stock: Number(product.stock ?? 0),
+    status: product.status === 'active'
+  }
   productDialogVisible.value = true
 }
 

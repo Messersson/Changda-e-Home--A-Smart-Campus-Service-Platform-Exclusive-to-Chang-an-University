@@ -32,7 +32,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>0/198</span>
+                <span class='fraction'>0/208</span>
             </div>
         
             
@@ -1457,7 +1457,7 @@ router.put('/users/:id/status', [authMiddleware, adminAuthMiddleware], [
 router.get('/snacks', [authMiddleware, adminAuthMiddleware], <span class="fstat-no" title="function not covered" >as</span>ync (req, res) =&gt; {
 <span class="cstat-no" title="statement not covered" >  try {</span>
     const { status } = <span class="cstat-no" title="statement not covered" >req.query;</span>
-    const where = <span class="cstat-no" title="statement not covered" >status ? { status } : {};</span>
+    const where = <span class="cstat-no" title="statement not covered" >(status !== undefined &amp;&amp; status !== '') ? { status } : {};</span>
     const snacks = <span class="cstat-no" title="statement not covered" >await db.getSnacks(where);</span>
 <span class="cstat-no" title="statement not covered" >    res.json(db.successResponse(snacks));</span>
   } catch (error) {
@@ -1737,7 +1737,7 @@ router.delete('/tutors/:id', [authMiddleware, adminAuthMiddleware], <span class=
 router.get('/secondhand', [authMiddleware, adminAuthMiddleware], <span class="fstat-no" title="function not covered" >as</span>ync (req, res) =&gt; {
 <span class="cstat-no" title="statement not covered" >  try {</span>
     const { status } = <span class="cstat-no" title="statement not covered" >req.query;</span>
-    const where = <span class="cstat-no" title="statement not covered" >status ? { status } : {};</span>
+    const where = <span class="cstat-no" title="statement not covered" >(status !== undefined &amp;&amp; status !== '') ? { status } : {};</span>
     const rows = <span class="cstat-no" title="statement not covered" >await db.getSecondhandItems(where);</span>
     const items = <span class="cstat-no" title="statement not covered" >rows.map(<span class="fstat-no" title="function not covered" >i </span>=&gt; (<span class="cstat-no" title="statement not covered" >{ ...i, userId: i.user_id, images: typeof i.images === 'string' ? (i.images ? JSON.parse(i.images) : []) : i.images })</span>);</span>
 <span class="cstat-no" title="statement not covered" >    res.json(db.successResponse(items));</span>
@@ -1789,7 +1789,7 @@ router.delete('/secondhand/:id', [authMiddleware, adminAuthMiddleware], <span cl
 router.get('/study-materials', [authMiddleware, adminAuthMiddleware], <span class="fstat-no" title="function not covered" >as</span>ync (req, res) =&gt; {
 <span class="cstat-no" title="statement not covered" >  try {</span>
     const { status } = <span class="cstat-no" title="statement not covered" >req.query;</span>
-    const where = <span class="cstat-no" title="statement not covered" >status ? { status } : {};</span>
+    const where = <span class="cstat-no" title="statement not covered" >(status !== undefined &amp;&amp; status !== '') ? { status } : {};</span>
     const rows = <span class="cstat-no" title="statement not covered" >await db.getStudyMaterials(where);</span>
     const materials = <span class="cstat-no" title="statement not covered" >rows.map(<span class="fstat-no" title="function not covered" >m </span>=&gt; (<span class="cstat-no" title="statement not covered" >{ ...m, uploaderId: m.uploader_id, uploaderName: m.uploader_name })</span>);</span>
 <span class="cstat-no" title="statement not covered" >    res.json(db.successResponse(materials));</span>
@@ -1884,8 +1884,8 @@ router.get('/orders', [authMiddleware, adminAuthMiddleware], <span class="fstat-
 <span class="cstat-no" title="statement not covered" >  try {</span>
     const { type, status } = <span class="cstat-no" title="statement not covered" >req.query;</span>
     const where = <span class="cstat-no" title="statement not covered" >{};</span>
-<span class="cstat-no" title="statement not covered" >    if (type) <span class="cstat-no" title="statement not covered" >where.type = type;</span></span>
-<span class="cstat-no" title="statement not covered" >    if (status) <span class="cstat-no" title="statement not covered" >where.status = status;</span></span>
+<span class="cstat-no" title="statement not covered" >    if (type &amp;&amp; type !== '') <span class="cstat-no" title="statement not covered" >where.type = type;</span></span>
+<span class="cstat-no" title="statement not covered" >    if (status &amp;&amp; status !== '') <span class="cstat-no" title="statement not covered" >where.status = status;</span></span>
     const rows = <span class="cstat-no" title="statement not covered" >await db.getOrders(where);</span>
     const orders = <span class="cstat-no" title="statement not covered" >rows.map(<span class="fstat-no" title="function not covered" >o </span>=&gt; (<span class="cstat-no" title="statement not covered" >{ ...o, userId: o.user_id, totalAmount: o.total_amount, items: typeof o.items === 'string' ? JSON.parse(o.items || '[]') : o.items })</span>);</span>
 <span class="cstat-no" title="statement not covered" >    res.json(db.successResponse(orders.reverse()));</span>
@@ -2053,7 +2053,7 @@ module.exports = router;
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-03-15T05:15:48.982Z
+                at 2026-04-12T03:58:12.244Z
             </div>
         <script src="../../prettify.js"></script>
         <script>

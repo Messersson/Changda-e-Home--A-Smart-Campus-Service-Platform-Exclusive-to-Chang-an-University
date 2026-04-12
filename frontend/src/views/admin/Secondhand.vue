@@ -17,7 +17,7 @@
         <el-table-column prop="title" label="商品标题" width="150" />
         <el-table-column prop="category" label="分类" width="100" />
         <el-table-column prop="price" label="价格" width="80">
-          <template #default="{ row }">¥{{ row.price.toFixed(2) }}</template>
+          <template #default="{ row }">¥{{ Number(row.price ?? 0).toFixed(2) }}</template>
         </el-table-column>
         <el-table-column prop="description" label="描述" min-width="200" show-overflow-tooltip />
         <el-table-column label="状态" width="100">
@@ -51,7 +51,10 @@ const loadItems = async () => {
   try {
     const params = filterStatus.value ? { status: filterStatus.value } : {}
     const res = await adminApi.getSecondhandItems(params)
-    items.value = res.data
+    items.value = (Array.isArray(res.data) ? res.data : []).map(item => ({
+      ...item,
+      price: Number(item.price ?? 0)
+    }))
   } catch (error) {
     console.error('加载二手商品失败:', error)
   }

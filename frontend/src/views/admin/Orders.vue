@@ -39,7 +39,7 @@
           </template>
         </el-table-column>
         <el-table-column prop="totalAmount" label="订单金额" width="100">
-          <template #default="{ row }">¥{{ row.totalAmount.toFixed(2) }}</template>
+          <template #default="{ row }">¥{{ Number(row.totalAmount ?? 0).toFixed(2) }}</template>
         </el-table-column>
         <el-table-column label="订单状态" width="100">
           <template #default="{ row }">
@@ -72,13 +72,20 @@ const orders = ref([])
 const filterType = ref('')
 const filterStatus = ref('')
 
+const normalizeOrder = (item) => ({
+  ...item,
+  totalAmount: Number(item.totalAmount ?? 0),
+  items: Array.isArray(item.items) ? item.items : [],
+  createdAt: item.createdAt ?? item.created_at ?? ''
+})
+
 const loadOrders = async () => {
   try {
     const params = {}
     if (filterType.value) params.type = filterType.value
     if (filterStatus.value) params.status = filterStatus.value
     const res = await adminApi.getOrders(params)
-    orders.value = res.data
+    orders.value = (Array.isArray(res.data) ? res.data : []).map(normalizeOrder)
   } catch (error) {
     console.error('加载订单列表失败:', error)
   }
@@ -105,7 +112,9 @@ const getStatusText = (status) => {
 }
 
 const formatTime = (time) => {
-  return new Date(time).toLocaleString('zh-CN')
+  if (!time) return '-'
+  const date = new Date(time)
+  return Number.isNaN(date.getTime()) ? '-' : date.toLocaleString('zh-CN')
 }
 
 const updateStatus = async (order, status) => {

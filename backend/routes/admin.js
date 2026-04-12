@@ -509,7 +509,7 @@ router.get('/orders', [authMiddleware, adminAuthMiddleware], async (req, res) =>
 });
 
 router.put('/orders/:id/status', [authMiddleware, adminAuthMiddleware], [
-  body('status').isIn(['pending', 'completed', 'cancelled']).withMessage('状态无效')
+  body('status').isIn(['pending', 'processing', 'completed', 'cancelled']).withMessage('状态无效')
 ], async (req, res) => {
   const validation = db.validateRequest(req);
   if (!validation.success) {
