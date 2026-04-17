@@ -1,0 +1,12 @@
+.git
+.gitignore
+**/node_modules
+**/coverage
+**/dist
+**/logs
+logs
+frontend/node_modules/.vite
+backend/logs
+frontend/dist/assets
+Microsoft
+.vscode

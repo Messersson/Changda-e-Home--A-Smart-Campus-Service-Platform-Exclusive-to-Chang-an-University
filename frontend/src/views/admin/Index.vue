@@ -88,8 +88,10 @@
                 </div>
                 <el-icon><ArrowDown /></el-icon>
               </div>
+
               <template #dropdown>
                 <el-dropdown-menu>
+                  <el-dropdown-item command="profile">个人信息</el-dropdown-item>
                   <el-dropdown-item command="home">返回用户端</el-dropdown-item>
                   <el-dropdown-item command="logout" divided>退出登录</el-dropdown-item>
                 </el-dropdown-menu>
@@ -112,19 +114,24 @@
         </el-main>
       </el-container>
     </el-container>
+
+    <UserProfileDialog v-model="profileDialogVisible" />
   </div>
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useUserStore } from '@/stores/user'
+import UserProfileDialog from '@/components/UserProfileDialog.vue'
 import adminConsoleBg from '@/assets/bg-admin-console.svg'
 
 const router = useRouter()
 const route = useRoute()
 const userStore = useUserStore()
+const profileDialogVisible = ref(false)
+
 const adminShellStyle = {
   backgroundImage: `linear-gradient(180deg, rgba(11, 18, 35, 0.42), rgba(11, 18, 35, 0.55)), url(${adminConsoleBg})`
 }
@@ -150,6 +157,9 @@ const currentTitle = computed(() => {
 
 const handleCommand = async (command) => {
   switch (command) {
+    case 'profile':
+      profileDialogVisible.value = true
+      break
     case 'home':
       router.push('/')
       break
@@ -164,7 +174,7 @@ const handleCommand = async (command) => {
         ElMessage.success('已退出登录')
         router.push('/login')
       } catch (error) {
-        console.log('取消退出登录')
+        console.log('取消退出登录', error)
       }
       break
   }

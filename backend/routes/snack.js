@@ -1,19 +1,26 @@
 const express = require('express');
 const { body } = require('express-validator');
 const db = require('../database/database');
-const DatabaseAdapter = require('../database/adapter');
 const { authMiddleware } = require('../middleware/auth');
 
 const router = express.Router();
 
+const serializeOrder = (order) => ({
+  ...order,
+  userId: order.user_id,
+  totalAmount: Number(order.total_amount || 0),
+  items: typeof order.items === 'string' ? JSON.parse(order.items || '[]') : (order.items || []),
+  createdAt: order.created_at
+});
+
 router.get('/merchants', async (req, res) => {
   try {
     const snacks = await db.getSnacks({ status: 'active' });
-    const merchants = [...new Set(snacks.map(s => s.merchant))];
-    res.json(db.successResponse(merchants));
+    const merchants = [...new Set(snacks.map((item) => item.merchant))];
+    return res.json(db.successResponse(merchants));
   } catch (error) {
     console.error('[Snack merchants]', error);
-    res.status(500).json(db.errorResponse('服务器内部错误'));
+    return res.status(500).json(db.errorResponse('服务器内部错误'));
   }
 });
 
@@ -21,27 +28,32 @@ router.get('/list', async (req, res) => {
   try {
     const { merchant } = req.query;
     let snacks = await db.getSnacks({ status: 'active' });
+
     if (merchant) {
-      snacks = snacks.filter(s => s.merchant === merchant);
+      snacks = snacks.filter((item) => item.merchant === merchant);
     }
-    res.json(db.successResponse(snacks));
+
+    return res.json(db.successResponse(snacks));
   } catch (error) {
     console.error('[Snack list]', error);
-    res.status(500).json(db.errorResponse('服务器内部错误'));
+    return res.status(500).json(db.errorResponse('服务器内部错误'));
   }
 });
 
 router.get('/detail/:id', async (req, res) => {
   const { id } = req.params;
+
   try {
-    const snack = await db.getSnackById(parseInt(id));
+    const snack = await db.getSnackById(parseInt(id, 10));
+
     if (!snack) {
       return res.status(404).json(db.errorResponse('菜品不存在'));
     }
-    res.json(db.successResponse(snack));
+
+    return res.json(db.successResponse(snack));
   } catch (error) {
     console.error('[Snack detail]', error);
-    res.status(500).json(db.errorResponse('服务器内部错误'));
+    return res.status(500).json(db.errorResponse('服务器内部错误'));
   }
 });
 
@@ -64,14 +76,16 @@ router.post('/order', [
 
   for (const item of items) {
     const snack = await db.getSnackById(item.snackId);
+
     if (!snack) {
-      return res.status(400).json(db.errorResponse(`菜品ID ${item.snackId} 不存在`));
+      return res.status(400).json(db.errorResponse(`菜品 ID ${item.snackId} 不存在`));
     }
+
     totalAmount += Number(snack.price) * item.quantity;
     orderItems.push({
       snackId: snack.id,
       snackName: snack.name,
-      price: snack.price,
+      price: Number(snack.price),
       quantity: item.quantity,
       subtotal: Number(snack.price) * item.quantity
     });
@@ -86,28 +100,49 @@ router.post('/order', [
       remark: remark || '',
       status: 'pending'
     });
-    res.json(db.successResponse({ orderId: result.id, totalAmount }, '下单成功'));
+
+    return res.json(db.successResponse({ orderId: result.id, totalAmount }, '下单成功'));
   } catch (error) {
     console.error('[Snack order]', error);
-    res.status(500).json(db.errorResponse('下单失败'));
+    return res.status(500).json(db.errorResponse('下单失败'));
   }
 });
 
 router.get('/orders', authMiddleware, async (req, res) => {
   const userId = req.user.id;
+
   try {
     const rows = await db.getOrders({ user_id: userId, type: 'snack' });
-    const orders = rows.map(o => ({
-      ...o,
-      userId: o.user_id,
-      totalAmount: o.total_amount,
-      items: typeof o.items === 'string' ? JSON.parse(o.items || '[]') : o.items,
-      createdAt: o.created_at
-    }));
-    res.json(db.successResponse(orders.reverse()));
+    const orders = rows.map(serializeOrder).reverse();
+    return res.json(db.successResponse(orders));
   } catch (error) {
     console.error('[Snack orders]', error);
-    res.status(500).json(db.errorResponse('服务器内部错误'));
+    return res.status(500).json(db.errorResponse('服务器内部错误'));
+  }
+});
+
+router.put('/orders/:id/cancel', authMiddleware, async (req, res) => {
+  const orderId = parseInt(req.params.id, 10);
+  const userId = req.user.id;
+
+  try {
+    const order = await db.getOrderById(orderId);
+
+    if (!order || order.user_id !== userId || order.type !== 'snack') {
+      return res.status(404).json(db.errorResponse('订单不存在'));
+    }
+
+    if (order.status !== 'pending') {
+      return res.status(400).json(db.errorResponse('当前订单状态不支持取消'));
+    }
+
+    await db.updateOrder(orderId, { status: 'cancelled' });
+    const updatedOrder = await db.getOrderById(orderId);
+
+    return res.json(db.successResponse(serializeOrder(updatedOrder), '订单已取消'));
+  } catch (error) {
+    console.error('[Snack cancel order]', error);
+    return res.status(500).json(db.errorResponse('取消订单失败'));
   }
 });
 

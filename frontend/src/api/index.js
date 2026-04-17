@@ -5,6 +5,8 @@ export const authApi = {
   register: (data) => request.post('/auth/register', data),
   login: (data) => request.post('/auth/login', data),
   getUserInfo: () => request.get('/auth/me'),
+  updateProfile: (data) => request.put('/auth/me', data),
+  updatePassword: (data) => request.put('/auth/password', data),
   logout: () => request.post('/auth/logout')
 }
 
@@ -13,7 +15,8 @@ export const snackApi = {
   getSnacks: (params) => request.get('/snack/list', { params }),
   getSnackDetail: (id) => request.get(`/snack/detail/${id}`),
   createOrder: (data) => request.post('/snack/order', data),
-  getOrders: () => request.get('/snack/orders')
+  getOrders: () => request.get('/snack/orders'),
+  cancelOrder: (id) => request.put(`/snack/orders/${id}/cancel`)
 }
 
 export const supermarketApi = {
@@ -26,6 +29,7 @@ export const supermarketApi = {
   removeFromCart: (data) => request.delete('/supermarket/cart/remove', { data }),
   checkout: (data) => request.post('/supermarket/checkout', data),
   getOrders: () => request.get('/supermarket/orders'),
+  cancelOrder: (id) => request.put(`/supermarket/orders/${id}/cancel`),
   getOrderDetail: (id) => request.get(`/supermarket/order/${id}`)
 }
 
@@ -33,6 +37,9 @@ export const tutorApi = {
   getTutors: (params) => request.get('/tutor/list', { params }),
   getTutorDetail: (id) => request.get(`/tutor/detail/${id}`),
   publishTutor: (data) => request.post('/tutor/publish', data),
+  createOrder: (data) => request.post('/tutor/order', data),
+  getOrders: () => request.get('/tutor/orders'),
+  cancelOrder: (id) => request.put(`/tutor/orders/${id}/cancel`),
   getMyTutors: () => request.get('/tutor/my')
 }
 
@@ -40,6 +47,9 @@ export const secondhandApi = {
   getItems: (params) => request.get('/secondhand/list', { params }),
   getItemDetail: (id) => request.get(`/secondhand/detail/${id}`),
   publishItem: (data) => request.post('/secondhand/publish', data),
+  createOrder: (data) => request.post('/secondhand/order', data),
+  getOrders: () => request.get('/secondhand/orders'),
+  cancelOrder: (id) => request.put(`/secondhand/orders/${id}/cancel`),
   getMyItems: () => request.get('/secondhand/my'),
   getFavorites: () => request.get('/secondhand/favorites'),
   favoriteItem: (id) => request.post(`/secondhand/favorite/${id}`),
@@ -49,6 +59,9 @@ export const secondhandApi = {
 export const drivingSchoolApi = {
   getSchools: () => request.get('/driving-school/list'),
   getSchoolDetail: (id) => request.get(`/driving-school/detail/${id}`),
+  createOrder: (data) => request.post('/driving-school/order', data),
+  getOrders: () => request.get('/driving-school/orders'),
+  cancelOrder: (id) => request.put(`/driving-school/orders/${id}/cancel`),
   submitInquiry: (data) => request.post('/driving-school/inquiry', data),
   getMyInquiries: () => request.get('/driving-school/my-inquiries')
 }

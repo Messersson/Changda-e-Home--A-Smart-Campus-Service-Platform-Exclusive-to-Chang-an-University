@@ -18,9 +18,7 @@ const validateEmail = (email) => {
   return pattern.test(email);
 };
 
-const generateVerificationCode = () => {
-  return Math.random().toString(36).substring(2, 8).toUpperCase();
-};
+const generateVerificationCode = () => Math.random().toString(36).substring(2, 8).toUpperCase();
 
 const validateRequest = (req) => {
   const errors = validationResult(req);
@@ -29,6 +27,18 @@ const validateRequest = (req) => {
     errors: errors.array()
   };
 };
+
+const serializeUser = (user) => ({
+  id: user.id,
+  studentId: user.student_id,
+  email: user.email,
+  name: user.name,
+  major: user.major,
+  grade: user.grade,
+  role: user.role,
+  status: user.status,
+  createdAt: user.created_at
+});
 
 router.post('/send-verification', [
   body('email').isEmail().withMessage('邮箱格式不正确'),
@@ -46,7 +56,7 @@ router.post('/send-verification', [
   }
 
   if (!validateEmail(email)) {
-    return res.status(400).json(db.errorResponse('邮箱必须为长安大学教育邮箱（@chd.edu.cn）'));
+    return res.status(400).json(db.errorResponse('邮箱必须为长安大学邮箱（@chd.edu.cn）'));
   }
 
   const existingUser = await db.getUserByStudentId(studentId);
@@ -67,7 +77,7 @@ router.post('/send-verification', [
     created_at: new Date()
   });
 
-  res.json(db.successResponse({ 
+  return res.json(db.successResponse({
     message: '验证码已发送到您的邮箱，有效期10分钟',
     expiryTime: expiryTime.toISOString()
   }));
@@ -78,8 +88,9 @@ router.post('/register', [
   body('email').isEmail().withMessage('邮箱格式不正确'),
   body('code').notEmpty().withMessage('验证码不能为空'),
   body('password').isLength({ min: 6 }).withMessage('密码至少6位'),
-  body('name').notEmpty().withMessage('姓名不能为空'),
-  body('major').notEmpty().withMessage('专业不能为空')
+  body('name').trim().notEmpty().withMessage('姓名不能为空'),
+  body('major').trim().notEmpty().withMessage('专业不能为空'),
+  body('grade').trim().notEmpty().withMessage('年级不能为空')
 ], async (req, res) => {
   const validation = validateRequest(req);
   if (!validation.success) {
@@ -93,13 +104,13 @@ router.post('/register', [
   }
 
   if (!validateEmail(email)) {
-    return res.status(400).json(db.errorResponse('邮箱必须为长安大学教育邮箱'));
+    return res.status(400).json(db.errorResponse('邮箱必须为长安大学邮箱'));
   }
 
-  const verification = await db.getEmailVerification({ 
-    email, 
-    student_id: studentId, 
-    code 
+  const verification = await db.getEmailVerification({
+    email,
+    student_id: studentId,
+    code
   });
 
   if (!verification) {
@@ -112,7 +123,7 @@ router.post('/register', [
 
   const existingUserByStudentId = await db.getUserByStudentId(studentId);
   const existingUserByEmail = await db.getUserByEmail(email);
-  
+
   if (existingUserByStudentId || existingUserByEmail) {
     return res.status(400).json(db.errorResponse('该学号或邮箱已注册'));
   }
@@ -122,28 +133,21 @@ router.post('/register', [
     studentId,
     email,
     password: hashedPassword,
-    name,
-    major,
-    grade
+    name: name.trim(),
+    major: major.trim(),
+    grade: grade.trim()
   });
 
+  const savedUser = await db.getUserById(userResult.id);
   const token = jwt.sign(
-    { id: userResult.id, studentId, email, role: 'student' },
+    { id: savedUser.id, studentId: savedUser.student_id, email: savedUser.email, role: savedUser.role },
     process.env.JWT_SECRET,
     { expiresIn: process.env.JWT_EXPIRES_IN }
   );
 
-  res.json(db.successResponse({
+  return res.json(db.successResponse({
     token,
-    user: {
-      id: userResult.id,
-      studentId,
-      email,
-      name,
-      major,
-      grade,
-      role: 'student'
-    }
+    user: serializeUser(savedUser)
   }, '注册成功'));
 });
 
@@ -169,9 +173,11 @@ router.post('/login', [
     const isPasswordValid = user.password.startsWith('$2')
       ? await bcrypt.compare(password, user.password)
       : password === user.password;
+
     if (!isPasswordValid) {
       return res.status(401).json(db.errorResponse('学号或密码错误'));
     }
+
     if (!user.password.startsWith('$2')) {
       await db.updateUser(user.id, { password: await bcrypt.hash(password, 10) });
     }
@@ -186,17 +192,9 @@ router.post('/login', [
       { expiresIn: process.env.JWT_EXPIRES_IN }
     );
 
-    res.json(db.successResponse({
+    return res.json(db.successResponse({
       token,
-      user: {
-        id: user.id,
-        studentId: user.student_id,
-        email: user.email,
-        name: user.name,
-        major: user.major,
-        grade: user.grade,
-        role: user.role
-      }
+      user: serializeUser(user)
     }, '登录成功'));
   } catch (error) {
     console.error('[登录错误]', error.message);
@@ -212,24 +210,103 @@ router.get('/me', authMiddleware, async (req, res) => {
       return res.status(404).json(db.errorResponse('用户不存在'));
     }
 
-    res.json(db.successResponse({
-      id: user.id,
-      studentId: user.student_id,
-      email: user.email,
-      name: user.name,
-      major: user.major,
-      grade: user.grade,
-      role: user.role,
-      status: user.status
-    }));
+    return res.json(db.successResponse(serializeUser(user)));
   } catch (error) {
     console.error('[获取用户信息错误]', error.message);
     return res.status(500).json(db.errorResponse('服务器内部错误'));
   }
 });
 
+router.put('/me', [
+  authMiddleware,
+  body('name')
+    .trim()
+    .notEmpty()
+    .withMessage('姓名不能为空')
+    .isLength({ max: 50 })
+    .withMessage('姓名不能超过50个字'),
+  body('major')
+    .trim()
+    .notEmpty()
+    .withMessage('专业不能为空')
+    .isLength({ max: 100 })
+    .withMessage('专业不能超过100个字'),
+  body('grade')
+    .trim()
+    .notEmpty()
+    .withMessage('年级不能为空')
+    .isLength({ max: 20 })
+    .withMessage('年级不能超过20个字')
+], async (req, res) => {
+  const validation = validateRequest(req);
+  if (!validation.success) {
+    return res.status(400).json(db.errorResponse('参数验证失败', 400));
+  }
+
+  try {
+    const existingUser = await db.getUserById(req.user.id);
+
+    if (!existingUser) {
+      return res.status(404).json(db.errorResponse('用户不存在'));
+    }
+
+    await db.updateUser(req.user.id, {
+      name: req.body.name.trim(),
+      major: req.body.major.trim(),
+      grade: req.body.grade.trim()
+    });
+
+    const updatedUser = await db.getUserById(req.user.id);
+    return res.json(db.successResponse(serializeUser(updatedUser), '个人信息已更新'));
+  } catch (error) {
+    console.error('[更新用户信息错误]', error.message);
+    return res.status(500).json(db.errorResponse('服务器内部错误'));
+  }
+});
+
+router.put('/password', [
+  authMiddleware,
+  body('currentPassword').notEmpty().withMessage('当前密码不能为空'),
+  body('newPassword').isLength({ min: 6 }).withMessage('新密码至少6位')
+], async (req, res) => {
+  const validation = validateRequest(req);
+  if (!validation.success) {
+    return res.status(400).json(db.errorResponse('参数验证失败', 400));
+  }
+
+  const { currentPassword, newPassword } = req.body;
+
+  if (currentPassword === newPassword) {
+    return res.status(400).json(db.errorResponse('新密码不能与当前密码相同'));
+  }
+
+  try {
+    const user = await db.getUserById(req.user.id);
+
+    if (!user) {
+      return res.status(404).json(db.errorResponse('用户不存在'));
+    }
+
+    const isPasswordValid = user.password.startsWith('$2')
+      ? await bcrypt.compare(currentPassword, user.password)
+      : currentPassword === user.password;
+
+    if (!isPasswordValid) {
+      return res.status(400).json(db.errorResponse('当前密码不正确'));
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await db.updateUser(req.user.id, { password: hashedPassword });
+
+    return res.json(db.successResponse(null, '密码修改成功'));
+  } catch (error) {
+    console.error('[修改密码错误]', error.message);
+    return res.status(500).json(db.errorResponse('服务器内部错误'));
+  }
+});
+
 router.post('/logout', authMiddleware, async (req, res) => {
-  res.json(db.successResponse(null, '退出登录成功'));
+  return res.json(db.successResponse(null, '退出登录成功'));
 });
 
 module.exports = router;

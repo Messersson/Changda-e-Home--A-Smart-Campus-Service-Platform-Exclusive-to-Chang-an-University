@@ -49,13 +49,16 @@
             <p><el-icon><Phone /></el-icon> 联系方式：{{ tutor.contact }}</p>
           </div>
           <p class="tutor-description">{{ tutor.description }}</p>
-          <el-button type="primary" style="width: 100%" @click="showDetail(tutor)">查看详情</el-button>
+          <div class="tutor-actions">
+            <el-button @click="showDetail(tutor)">查看详情</el-button>
+            <el-button type="primary" @click="showOrderDialog(tutor)">预约下单</el-button>
+          </div>
         </el-card>
       </el-col>
     </el-row>
     <el-empty v-if="tutors.length === 0" description="暂无家教信息" />
 
-    <el-drawer v-model="detailDrawerVisible" title="家教详情" size="400px">
+    <el-drawer v-model="detailDrawerVisible" title="家教详情" size="420px">
       <div v-if="selectedTutor" class="tutor-detail">
         <div class="detail-header">
           <el-avatar :size="80" :icon="UserFilled" />
@@ -71,11 +74,50 @@
           <p><strong>联系方式：</strong>{{ selectedTutor.contact }}</p>
           <p><strong>描述：</strong>{{ selectedTutor.description }}</p>
         </div>
+        <el-button type="primary" style="width: 100%; margin-top: 20px" @click="showOrderDialog(selectedTutor)">
+          立即预约
+        </el-button>
       </div>
     </el-drawer>
 
+    <el-dialog v-model="orderDialogVisible" title="家教下单" width="520px">
+      <el-form ref="orderFormRef" :model="orderForm" :rules="orderRules" label-width="90px">
+        <el-form-item label="家教老师">
+          <el-input :model-value="selectedTutor ? `${selectedTutor.name} · ${selectedTutor.subject}` : ''" disabled />
+        </el-form-item>
+        <el-form-item label="预约课时" prop="hours">
+          <el-input-number v-model="orderForm.hours" :min="1" :max="50" />
+          <span class="field-suffix">小时</span>
+        </el-form-item>
+        <el-form-item label="联系电话" prop="phone">
+          <el-input v-model="orderForm.phone" placeholder="请输入联系电话" />
+        </el-form-item>
+        <el-form-item label="上课地点" prop="address">
+          <el-input v-model="orderForm.address" placeholder="请输入上课地点" />
+        </el-form-item>
+        <el-form-item label="备注">
+          <el-input
+            v-model="orderForm.remark"
+            type="textarea"
+            :rows="3"
+            placeholder="可填写希望的上课时间、补充要求等"
+          />
+        </el-form-item>
+      </el-form>
+
+      <div class="order-preview">
+        <span>预计金额</span>
+        <strong>¥{{ tutorOrderAmount.toFixed(2) }}</strong>
+      </div>
+
+      <template #footer>
+        <el-button @click="orderDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="submittingOrder" @click="submitOrder">确认下单</el-button>
+      </template>
+    </el-dialog>
+
     <el-dialog v-model="publishDialogVisible" title="发布家教信息" width="500px">
-      <el-form :model="publishForm" :rules="publishRules" ref="publishFormRef" label-width="80px">
+      <el-form ref="publishFormRef" :model="publishForm" :rules="publishRules" label-width="80px">
         <el-form-item label="科目" prop="subject">
           <el-input v-model="publishForm.subject" placeholder="请输入科目" />
         </el-form-item>
@@ -103,14 +145,14 @@
       </el-form>
       <template #footer>
         <el-button @click="publishDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitPublish" :loading="publishing">提交</el-button>
+        <el-button type="primary" :loading="publishing" @click="submitPublish">提交</el-button>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { UserFilled, Reading, Money, Phone } from '@element-plus/icons-vue'
 import { tutorApi } from '@/api'
@@ -135,6 +177,17 @@ const publishForm = ref({
   description: ''
 })
 
+const orderDialogVisible = ref(false)
+const submittingOrder = ref(false)
+const orderFormRef = ref(null)
+const orderForm = ref({
+  tutorId: null,
+  hours: 2,
+  phone: '',
+  address: '',
+  remark: ''
+})
+
 const publishRules = {
   subject: [{ required: true, message: '请输入科目', trigger: 'blur' }],
   grade: [{ required: true, message: '请选择年级', trigger: 'change' }],
@@ -143,10 +196,28 @@ const publishRules = {
   description: [{ required: true, message: '请输入描述', trigger: 'blur' }]
 }
 
+const orderRules = {
+  hours: [{ required: true, message: '请输入预约课时', trigger: 'change' }],
+  phone: [{ required: true, message: '请输入联系电话', trigger: 'blur' }],
+  address: [{ required: true, message: '请输入上课地点', trigger: 'blur' }]
+}
+
+const tutorOrderAmount = computed(() => Number(selectedTutor.value?.salary || 0) * Number(orderForm.value.hours || 0))
+
+const resetOrderForm = () => {
+  orderForm.value = {
+    tutorId: selectedTutor.value?.id || null,
+    hours: 2,
+    phone: '',
+    address: '',
+    remark: ''
+  }
+}
+
 const loadTutors = async () => {
   try {
     const res = await tutorApi.getTutors(filterForm.value)
-    tutors.value = res.data
+    tutors.value = Array.isArray(res.data) ? res.data : []
   } catch (error) {
     console.error('加载家教信息失败:', error)
   }
@@ -167,22 +238,49 @@ const showDetail = (tutor) => {
   detailDrawerVisible.value = true
 }
 
+const showOrderDialog = (tutor) => {
+  selectedTutor.value = tutor
+  resetOrderForm()
+  orderDialogVisible.value = true
+}
+
+const submitOrder = async () => {
+  if (!orderFormRef.value || !selectedTutor.value) return
+
+  await orderFormRef.value.validate(async (valid) => {
+    if (!valid) return
+
+    submittingOrder.value = true
+    try {
+      await tutorApi.createOrder(orderForm.value)
+      ElMessage.success('下单成功，可在“我的订单”中查看')
+      orderDialogVisible.value = false
+      resetOrderForm()
+    } catch (error) {
+      console.error('家教下单失败:', error)
+    } finally {
+      submittingOrder.value = false
+    }
+  })
+}
+
 const submitPublish = async () => {
   if (!publishFormRef.value) return
+
   await publishFormRef.value.validate(async (valid) => {
-    if (valid) {
-      publishing.value = true
-      try {
-        await tutorApi.publishTutor(publishForm.value)
-        ElMessage.success('发布成功，等待审核')
-        publishDialogVisible.value = false
-        publishForm.value = { subject: '', grade: '', salary: 50, contact: '', description: '' }
-        loadTutors()
-      } catch (error) {
-        console.error('发布失败:', error)
-      } finally {
-        publishing.value = false
-      }
+    if (!valid) return
+
+    publishing.value = true
+    try {
+      await tutorApi.publishTutor(publishForm.value)
+      ElMessage.success('发布成功，等待审核')
+      publishDialogVisible.value = false
+      publishForm.value = { subject: '', grade: '', salary: 50, contact: '', description: '' }
+      loadTutors()
+    } catch (error) {
+      console.error('发布失败:', error)
+    } finally {
+      publishing.value = false
     }
   })
 }
@@ -261,6 +359,12 @@ onMounted(() => {
   -webkit-box-orient: vertical;
 }
 
+.tutor-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
 .tutor-detail .detail-header {
   display: flex;
   align-items: center;
@@ -276,5 +380,29 @@ onMounted(() => {
   margin: 15px 0;
   color: #666;
   line-height: 1.6;
+}
+
+.field-suffix {
+  margin-left: 10px;
+  color: #666;
+}
+
+.order-preview {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 8px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: #f6f8ff;
+}
+
+.order-preview span {
+  color: #666;
+}
+
+.order-preview strong {
+  color: #3366ff;
+  font-size: 24px;
 }
 </style>

@@ -70,19 +70,7 @@ class DatabaseAdapter {
   }
 
   static async transaction(callback) {
-    const connection = await this.pool.getConnection();
-    
-    try {
-      await connection.beginTransaction();
-      const result = await callback(connection);
-      await connection.commit();
-      return result;
-    } catch (error) {
-      await connection.rollback();
-      throw error;
-    } finally {
-      connection.release();
-    }
+    return connectionManager.executeTransaction(callback);
   }
 
   static async batchInsert(table, dataArray) {
@@ -93,26 +81,18 @@ class DatabaseAdapter {
     const keys = Object.keys(dataArray[0]);
     const placeholders = keys.map(() => '?').join(', ');
     const sql = `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders})`;
-    
-    const connection = await this.pool.getConnection();
-    try {
-      await connection.beginTransaction();
-      
+
+    return this.transaction(async (connection) => {
       let lastInsertId = 0;
+
       for (const data of dataArray) {
         const values = Object.values(data);
         const [result] = await connection.query(sql, values);
         lastInsertId = result.insertId;
       }
-      
-      await connection.commit();
+
       return { insertId: lastInsertId, affectedRows: dataArray.length };
-    } catch (error) {
-      await connection.rollback();
-      throw error;
-    } finally {
-      connection.release();
-    }
+    });
   }
 
   static async selectWithJoin(table, joins, where = {}, fields = '*') {

@@ -520,6 +520,20 @@ router.put('/orders/:id/status', [authMiddleware, adminAuthMiddleware], [
   try {
     const order = await db.getOrderById(parseInt(id));
     if (!order) return res.status(404).json(db.errorResponse('订单不存在'));
+
+    if (order.type === 'secondhand') {
+      const items = typeof order.items === 'string' ? JSON.parse(order.items || '[]') : (order.items || []);
+      const itemId = items[0]?.itemId;
+
+      if (itemId) {
+        if (status === 'cancelled') {
+          await db.updateSecondhandItem(Number(itemId), { status: 'active' });
+        } else if (status === 'processing' || status === 'completed') {
+          await db.updateSecondhandItem(Number(itemId), { status: 'sold' });
+        }
+      }
+    }
+
     await db.updateOrder(parseInt(id), { status });
     const updated = await db.getOrderById(parseInt(id));
     res.json(db.successResponse({ ...updated, userId: updated.user_id, totalAmount: updated.total_amount, items: typeof updated.items === 'string' ? JSON.parse(updated.items || '[]') : updated.items }, '订单状态更新成功'));

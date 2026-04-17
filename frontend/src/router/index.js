@@ -62,6 +62,12 @@ const routes = [
         name: 'Forum',
         component: () => import('@/views/Forum.vue'),
         meta: { title: '校园论坛', keepAlive: true }
+      },
+      {
+        path: 'orders',
+        name: 'Orders',
+        component: () => import('@/views/Orders.vue'),
+        meta: { title: '我的订单', keepAlive: true }
       }
     ]
   },

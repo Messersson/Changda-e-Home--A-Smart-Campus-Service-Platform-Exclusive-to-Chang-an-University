@@ -23,8 +23,8 @@
           </div>
           <p class="school-description">{{ school.description }}</p>
           <div class="school-actions">
-            <el-button type="primary" @click="showDetail(school)">查看详情</el-button>
-            <el-button @click="showInquiryDialog(school)">咨询</el-button>
+            <el-button @click="showDetail(school)">查看详情</el-button>
+            <el-button type="primary" @click="showOrderDialog(school)">立即报名</el-button>
           </div>
         </el-card>
       </el-col>
@@ -51,14 +51,52 @@
           <h4>驾校介绍</h4>
           <p>{{ selectedSchool.description }}</p>
         </div>
-        <el-button type="primary" style="width: 100%; margin-top: 20px" @click="showInquiryDialog(selectedSchool)">
-          立即咨询
-        </el-button>
+        <div class="drawer-actions">
+          <el-button style="width: 100%" @click="showInquiryDialog(selectedSchool)">咨询顾问</el-button>
+          <el-button type="primary" style="width: 100%" @click="showOrderDialog(selectedSchool)">
+            立即报名
+          </el-button>
+        </div>
       </div>
     </el-drawer>
 
+    <el-dialog v-model="orderDialogVisible" title="驾校报名下单" width="520px">
+      <el-form ref="orderFormRef" :model="orderForm" :rules="orderRules" label-width="90px">
+        <el-form-item label="驾校">
+          <el-input :model-value="selectedSchool?.name || ''" disabled />
+        </el-form-item>
+        <el-form-item label="报名姓名" prop="studentName">
+          <el-input v-model="orderForm.studentName" placeholder="请输入报名姓名" />
+        </el-form-item>
+        <el-form-item label="联系电话" prop="phone">
+          <el-input v-model="orderForm.phone" placeholder="请输入联系电话" />
+        </el-form-item>
+        <el-form-item label="报名地点" prop="address">
+          <el-input v-model="orderForm.address" placeholder="请输入报名校区或接送地点" />
+        </el-form-item>
+        <el-form-item label="备注">
+          <el-input
+            v-model="orderForm.remark"
+            type="textarea"
+            :rows="3"
+            placeholder="可填写期望练车时间、班型诉求等补充信息"
+          />
+        </el-form-item>
+      </el-form>
+
+      <div class="order-preview order-preview--success">
+        <span>报名金额</span>
+        <strong>¥{{ drivingOrderAmount.toFixed(2) }}</strong>
+      </div>
+
+      <template #footer>
+        <el-button @click="orderDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="submittingOrder" @click="submitOrder">确认下单</el-button>
+      </template>
+    </el-dialog>
+
     <el-dialog v-model="inquiryDialogVisible" title="驾校咨询" width="500px">
-      <el-form :model="inquiryForm" :rules="inquiryRules" ref="inquiryFormRef" label-width="80px">
+      <el-form ref="inquiryFormRef" :model="inquiryForm" :rules="inquiryRules" label-width="80px">
         <el-form-item label="驾校">
           <el-input :model-value="selectedSchool?.name || ''" disabled />
         </el-form-item>
@@ -74,14 +112,14 @@
       </el-form>
       <template #footer>
         <el-button @click="inquiryDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitInquiry" :loading="submitting">提交</el-button>
+        <el-button type="primary" :loading="submittingInquiry" @click="submitInquiry">提交</el-button>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Location, Phone, Money } from '@element-plus/icons-vue'
 import { drivingSchoolApi } from '@/api'
@@ -89,13 +127,24 @@ import { drivingSchoolApi } from '@/api'
 const schools = ref([])
 const detailDrawerVisible = ref(false)
 const inquiryDialogVisible = ref(false)
+const orderDialogVisible = ref(false)
 const selectedSchool = ref(null)
-const submitting = ref(false)
+const submittingInquiry = ref(false)
 const inquiryFormRef = ref(null)
 const inquiryForm = ref({
   name: '',
   phone: '',
   question: ''
+})
+
+const submittingOrder = ref(false)
+const orderFormRef = ref(null)
+const orderForm = ref({
+  schoolId: null,
+  studentName: '',
+  phone: '',
+  address: '',
+  remark: ''
 })
 
 const inquiryRules = {
@@ -104,10 +153,36 @@ const inquiryRules = {
   question: [{ required: true, message: '请输入咨询问题', trigger: 'blur' }]
 }
 
+const orderRules = {
+  studentName: [{ required: true, message: '请输入报名姓名', trigger: 'blur' }],
+  phone: [{ required: true, message: '请输入联系电话', trigger: 'blur' }],
+  address: [{ required: true, message: '请输入报名地点', trigger: 'blur' }]
+}
+
+const drivingOrderAmount = computed(() => Number(selectedSchool.value?.price || 0))
+
+const resetInquiryForm = () => {
+  inquiryForm.value = {
+    name: '',
+    phone: '',
+    question: ''
+  }
+}
+
+const resetOrderForm = () => {
+  orderForm.value = {
+    schoolId: selectedSchool.value?.id || null,
+    studentName: '',
+    phone: '',
+    address: '',
+    remark: ''
+  }
+}
+
 const loadSchools = async () => {
   try {
     const res = await drivingSchoolApi.getSchools()
-    schools.value = res.data
+    schools.value = Array.isArray(res.data) ? res.data : []
   } catch (error) {
     console.error('加载驾校列表失败:', error)
   }
@@ -120,27 +195,55 @@ const showDetail = (school) => {
 
 const showInquiryDialog = (school) => {
   selectedSchool.value = school
+  resetInquiryForm()
   inquiryDialogVisible.value = true
 }
 
+const showOrderDialog = (school) => {
+  selectedSchool.value = school
+  resetOrderForm()
+  orderDialogVisible.value = true
+}
+
+const submitOrder = async () => {
+  if (!orderFormRef.value || !selectedSchool.value) return
+
+  await orderFormRef.value.validate(async (valid) => {
+    if (!valid) return
+
+    submittingOrder.value = true
+    try {
+      await drivingSchoolApi.createOrder(orderForm.value)
+      ElMessage.success('下单成功，可在“我的订单”中查看')
+      orderDialogVisible.value = false
+      resetOrderForm()
+    } catch (error) {
+      console.error('驾校报名下单失败:', error)
+    } finally {
+      submittingOrder.value = false
+    }
+  })
+}
+
 const submitInquiry = async () => {
-  if (!inquiryFormRef.value) return
+  if (!inquiryFormRef.value || !selectedSchool.value) return
+
   await inquiryFormRef.value.validate(async (valid) => {
-    if (valid) {
-      submitting.value = true
-      try {
-        await drivingSchoolApi.submitInquiry({
-          schoolId: selectedSchool.value.id,
-          ...inquiryForm.value
-        })
-        ElMessage.success('咨询提交成功')
-        inquiryDialogVisible.value = false
-        inquiryForm.value = { name: '', phone: '', question: '' }
-      } catch (error) {
-        console.error('提交咨询失败:', error)
-      } finally {
-        submitting.value = false
-      }
+    if (!valid) return
+
+    submittingInquiry.value = true
+    try {
+      await drivingSchoolApi.submitInquiry({
+        schoolId: selectedSchool.value.id,
+        ...inquiryForm.value
+      })
+      ElMessage.success('咨询提交成功')
+      inquiryDialogVisible.value = false
+      resetInquiryForm()
+    } catch (error) {
+      console.error('提交咨询失败:', error)
+    } finally {
+      submittingInquiry.value = false
     }
   })
 }
@@ -257,5 +360,34 @@ onMounted(() => {
 .detail-description p {
   color: #666;
   line-height: 1.8;
+}
+
+.drawer-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.order-preview {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 8px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: #f6f8ff;
+}
+
+.order-preview span {
+  color: #666;
+}
+
+.order-preview strong {
+  font-size: 24px;
+}
+
+.order-preview--success strong {
+  color: #67c23a;
 }
 </style>

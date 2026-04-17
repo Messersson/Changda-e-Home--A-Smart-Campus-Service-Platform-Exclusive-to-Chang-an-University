@@ -46,9 +46,9 @@
     </el-row>
     <el-empty v-if="items.length === 0" description="暂无商品" />
 
-    <el-drawer v-model="detailDrawerVisible" title="商品详情" size="500px">
+    <el-drawer v-model="detailDrawerVisible" title="商品详情" size="520px">
       <div v-if="selectedItem" class="item-detail">
-        <el-carousel :interval="4000" type="card" height="300px" v-if="selectedItem.images.length > 0">
+        <el-carousel v-if="selectedItem.images.length > 0" :interval="4000" type="card" height="300px">
           <el-carousel-item v-for="(image, index) in selectedItem.images" :key="index">
             <el-image :src="image" fit="cover" style="width: 100%; height: 100%" />
           </el-carousel-item>
@@ -63,14 +63,54 @@
           <h4>商品描述</h4>
           <p>{{ selectedItem.description }}</p>
         </div>
-        <el-button type="primary" style="width: 100%; margin-top: 20px" @click="toggleFavorite(selectedItem)">
-          {{ isFavorited(selectedItem.id) ? '取消收藏' : '收藏商品' }}
-        </el-button>
+        <div class="detail-actions">
+          <el-button style="width: 100%" @click="toggleFavorite(selectedItem)">
+            {{ isFavorited(selectedItem.id) ? '取消收藏' : '收藏商品' }}
+          </el-button>
+          <el-button type="primary" style="width: 100%" @click="showOrderDialog(selectedItem)">
+            立即下单
+          </el-button>
+        </div>
       </div>
     </el-drawer>
 
+    <el-dialog v-model="orderDialogVisible" title="二手商品下单" width="520px">
+      <el-form ref="orderFormRef" :model="orderForm" :rules="orderRules" label-width="90px">
+        <el-form-item label="商品">
+          <el-input :model-value="selectedItem?.title || ''" disabled />
+        </el-form-item>
+        <el-form-item label="商品价格">
+          <el-input :model-value="selectedItem ? `¥${Number(selectedItem.price).toFixed(2)}` : ''" disabled />
+        </el-form-item>
+        <el-form-item label="联系电话" prop="phone">
+          <el-input v-model="orderForm.phone" placeholder="请输入联系电话" />
+        </el-form-item>
+        <el-form-item label="交易地点" prop="address">
+          <el-input v-model="orderForm.address" placeholder="请输入约定交易地点" />
+        </el-form-item>
+        <el-form-item label="备注">
+          <el-input
+            v-model="orderForm.remark"
+            type="textarea"
+            :rows="3"
+            placeholder="可填写交易时间、成色要求等补充信息"
+          />
+        </el-form-item>
+      </el-form>
+
+      <div class="order-preview order-preview--danger">
+        <span>订单金额</span>
+        <strong>¥{{ secondhandOrderAmount.toFixed(2) }}</strong>
+      </div>
+
+      <template #footer>
+        <el-button @click="orderDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="submittingOrder" @click="submitOrder">确认下单</el-button>
+      </template>
+    </el-dialog>
+
     <el-dialog v-model="publishDialogVisible" title="发布二手商品" width="600px">
-      <el-form :model="publishForm" :rules="publishRules" ref="publishFormRef" label-width="80px">
+      <el-form ref="publishFormRef" :model="publishForm" :rules="publishRules" label-width="80px">
         <el-form-item label="标题" prop="title">
           <el-input v-model="publishForm.title" placeholder="请输入商品标题" />
         </el-form-item>
@@ -97,14 +137,14 @@
       </el-form>
       <template #footer>
         <el-button @click="publishDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitPublish" :loading="publishing">提交</el-button>
+        <el-button type="primary" :loading="publishing" @click="submitPublish">提交</el-button>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Star } from '@element-plus/icons-vue'
 import { secondhandApi } from '@/api'
@@ -128,6 +168,16 @@ const publishForm = ref({
   images: ''
 })
 
+const orderDialogVisible = ref(false)
+const submittingOrder = ref(false)
+const orderFormRef = ref(null)
+const orderForm = ref({
+  itemId: null,
+  phone: '',
+  address: '',
+  remark: ''
+})
+
 const publishRules = {
   title: [{ required: true, message: '请输入标题', trigger: 'blur' }],
   category: [{ required: true, message: '请选择分类', trigger: 'change' }],
@@ -135,10 +185,26 @@ const publishRules = {
   description: [{ required: true, message: '请输入描述', trigger: 'blur' }]
 }
 
+const orderRules = {
+  phone: [{ required: true, message: '请输入联系电话', trigger: 'blur' }],
+  address: [{ required: true, message: '请输入交易地点', trigger: 'blur' }]
+}
+
+const secondhandOrderAmount = computed(() => Number(selectedItem.value?.price || 0))
+
+const resetOrderForm = () => {
+  orderForm.value = {
+    itemId: selectedItem.value?.id || null,
+    phone: '',
+    address: '',
+    remark: ''
+  }
+}
+
 const loadItems = async () => {
   try {
     const res = await secondhandApi.getItems(filterForm.value)
-    items.value = res.data
+    items.value = Array.isArray(res.data) ? res.data : []
   } catch (error) {
     console.error('加载商品列表失败:', error)
   }
@@ -147,7 +213,7 @@ const loadItems = async () => {
 const loadFavorites = async () => {
   try {
     const res = await secondhandApi.getFavorites()
-    favorites.value = res.data
+    favorites.value = Array.isArray(res.data) ? res.data : []
   } catch (error) {
     console.error('加载收藏列表失败:', error)
   }
@@ -163,45 +229,71 @@ const showDetail = (item) => {
   detailDrawerVisible.value = true
 }
 
-const isFavorited = (itemId) => {
-  return favorites.value.some(f => f.id === itemId)
+const showOrderDialog = (item) => {
+  selectedItem.value = item
+  resetOrderForm()
+  orderDialogVisible.value = true
 }
+
+const isFavorited = (itemId) => favorites.value.some((item) => item.id === itemId)
 
 const toggleFavorite = async (item) => {
   try {
     if (isFavorited(item.id)) {
       await secondhandApi.unfavoriteItem(item.id)
       ElMessage.success('取消收藏成功')
-      favorites.value = favorites.value.filter(f => f.id !== item.id)
-    } else {
-      await secondhandApi.favoriteItem(item.id)
-      ElMessage.success('收藏成功')
-      favorites.value.push(item)
+      favorites.value = favorites.value.filter((favorite) => favorite.id !== item.id)
+      return
     }
+
+    await secondhandApi.favoriteItem(item.id)
+    ElMessage.success('收藏成功')
+    favorites.value.push(item)
   } catch (error) {
     console.error('操作失败:', error)
   }
 }
 
+const submitOrder = async () => {
+  if (!orderFormRef.value || !selectedItem.value) return
+
+  await orderFormRef.value.validate(async (valid) => {
+    if (!valid) return
+
+    submittingOrder.value = true
+    try {
+      await secondhandApi.createOrder(orderForm.value)
+      ElMessage.success('下单成功，可在“我的订单”中查看')
+      orderDialogVisible.value = false
+      resetOrderForm()
+    } catch (error) {
+      console.error('二手商品下单失败:', error)
+    } finally {
+      submittingOrder.value = false
+    }
+  })
+}
+
 const submitPublish = async () => {
   if (!publishFormRef.value) return
+
   await publishFormRef.value.validate(async (valid) => {
-    if (valid) {
-      publishing.value = true
-      try {
-        await secondhandApi.publishItem({
-          ...publishForm.value,
-          images: publishForm.value.images.split(',').map(url => url.trim()).filter(url => url)
-        })
-        ElMessage.success('发布成功，等待审核')
-        publishDialogVisible.value = false
-        publishForm.value = { title: '', category: '', price: 0, description: '', images: '' }
-        loadItems()
-      } catch (error) {
-        console.error('发布失败:', error)
-      } finally {
-        publishing.value = false
-      }
+    if (!valid) return
+
+    publishing.value = true
+    try {
+      await secondhandApi.publishItem({
+        ...publishForm.value,
+        images: publishForm.value.images.split(',').map((url) => url.trim()).filter(Boolean)
+      })
+      ElMessage.success('发布成功，等待审核')
+      publishDialogVisible.value = false
+      publishForm.value = { title: '', category: '', price: 0, description: '', images: '' }
+      loadItems()
+    } catch (error) {
+      console.error('发布失败:', error)
+    } finally {
+      publishing.value = false
     }
   })
 }
@@ -310,5 +402,34 @@ onMounted(() => {
 .detail-content p {
   color: #666;
   line-height: 1.8;
+}
+
+.detail-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.order-preview {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 8px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: #f6f8ff;
+}
+
+.order-preview span {
+  color: #666;
+}
+
+.order-preview strong {
+  font-size: 24px;
+}
+
+.order-preview--danger strong {
+  color: #f56c6c;
 }
 </style>

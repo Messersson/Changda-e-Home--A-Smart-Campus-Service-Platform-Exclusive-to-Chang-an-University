@@ -1,1 +1,14 @@
-/项目简介.md
+node_modules/
+coverage/
+dist/
+logs/
+*.log
+
+backend/.env
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.production.local
+
+.DS_Store
+Thumbs.db
+.vscode/

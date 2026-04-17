@@ -19,6 +19,7 @@
             <span class="status-pill__dot"></span>
             校园服务在线
           </div>
+
           <el-dropdown @command="handleCommand">
             <div class="user-info glass-panel">
               <el-avatar :size="38" class="user-avatar">
@@ -30,6 +31,7 @@
               </div>
               <el-icon><ArrowDown /></el-icon>
             </div>
+
             <template #dropdown>
               <el-dropdown-menu>
                 <el-dropdown-item command="profile">个人信息</el-dropdown-item>
@@ -77,11 +79,15 @@
               <el-icon><ChatDotRound /></el-icon>
               <span>校园论坛</span>
             </el-menu-item>
+            <el-menu-item index="/orders">
+              <el-icon><Tickets /></el-icon>
+              <span>我的订单</span>
+            </el-menu-item>
           </el-menu>
 
           <div class="aside-footer glass-panel">
             <strong>今日建议</strong>
-            <p>切换板块会保留已访问页面状态，查资料与逛论坛更连贯。</p>
+            <p>切换板块会保留已访问页面状态，查资料、看论坛和下单切换会更连贯。</p>
           </div>
         </el-aside>
 
@@ -89,12 +95,13 @@
           <div class="hero-banner glass-panel">
             <div>
               <div class="brand-chip brand-chip--dark">Campus Flow</div>
-              <h2>把生活服务、学习资源和校园交流聚合到一个空间</h2>
+              <h2>把生活服务、学习资源和校园交流整合到一个更顺手的入口</h2>
               <p>更轻、更稳、更有校园感的界面体验，支持快速浏览与多板块切换。</p>
             </div>
+
             <div class="hero-stats">
               <div class="hero-stat glass-panel">
-                <strong>7+</strong>
+                <strong>8+</strong>
                 <span>核心板块</span>
               </div>
               <div class="hero-stat glass-panel">
@@ -117,19 +124,24 @@
         </el-main>
       </el-container>
     </el-container>
+
+    <UserProfileDialog v-model="profileDialogVisible" />
   </div>
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useUserStore } from '@/stores/user'
+import UserProfileDialog from '@/components/UserProfileDialog.vue'
 import campusUserBg from '@/assets/bg-campus-user.svg'
 
 const router = useRouter()
 const route = useRoute()
 const userStore = useUserStore()
+const profileDialogVisible = ref(false)
+
 const homeShellStyle = {
   backgroundImage: `linear-gradient(180deg, rgba(255, 255, 255, 0.38), rgba(255, 255, 255, 0.46)), url(${campusUserBg})`
 }
@@ -145,7 +157,7 @@ const handleMenuSelect = (index) => {
 const handleCommand = async (command) => {
   switch (command) {
     case 'profile':
-      ElMessage.info('个人信息功能开发中')
+      profileDialogVisible.value = true
       break
     case 'admin':
       router.push('/admin')
@@ -161,7 +173,7 @@ const handleCommand = async (command) => {
         ElMessage.success('已退出登录')
         router.push('/login')
       } catch (error) {
-        console.log('取消退出登录')
+        console.log('取消退出登录', error)
       }
       break
   }

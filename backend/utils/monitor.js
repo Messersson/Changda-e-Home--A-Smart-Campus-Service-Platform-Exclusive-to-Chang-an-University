@@ -1,5 +1,6 @@
 const logger = require('./logger');
 const connectionManager = require('../database/connectionManager');
+const alertDispatcher = require('./alertDispatcher');
 
 class ConnectionMonitor {
   constructor() {
@@ -175,6 +176,10 @@ class ConnectionMonitor {
     if (this.metrics.alerts.length > 100) {
       this.metrics.alerts.shift();
     }
+
+    alertDispatcher.dispatch(alert).catch((error) => {
+      logger.error('[鐩戞帶] 告警投递失败', { message: error.message });
+    });
   }
 
   recordError(error, context = {}) {

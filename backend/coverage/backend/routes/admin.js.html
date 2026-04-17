@@ -23,16 +23,16 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">10.21% </span>
+                <span class="strong">10.02% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>42/411</span>
+                <span class='fraction'>42/419</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>0/208</span>
+                <span class='fraction'>0/224</span>
             </div>
         
             
@@ -44,9 +44,9 @@
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">11.11% </span>
+                <span class="strong">10.88% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>42/378</span>
+                <span class='fraction'>42/386</span>
             </div>
         
             
@@ -724,7 +724,21 @@
 <a name='L659'></a><a href='#L659'>659</a>
 <a name='L660'></a><a href='#L660'>660</a>
 <a name='L661'></a><a href='#L661'>661</a>
-<a name='L662'></a><a href='#L662'>662</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">2x</span>
+<a name='L662'></a><a href='#L662'>662</a>
+<a name='L663'></a><a href='#L663'>663</a>
+<a name='L664'></a><a href='#L664'>664</a>
+<a name='L665'></a><a href='#L665'>665</a>
+<a name='L666'></a><a href='#L666'>666</a>
+<a name='L667'></a><a href='#L667'>667</a>
+<a name='L668'></a><a href='#L668'>668</a>
+<a name='L669'></a><a href='#L669'>669</a>
+<a name='L670'></a><a href='#L670'>670</a>
+<a name='L671'></a><a href='#L671'>671</a>
+<a name='L672'></a><a href='#L672'>672</a>
+<a name='L673'></a><a href='#L673'>673</a>
+<a name='L674'></a><a href='#L674'>674</a>
+<a name='L675'></a><a href='#L675'>675</a>
+<a name='L676'></a><a href='#L676'>676</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">2x</span>
 <span class="cline-any cline-yes">2x</span>
 <span class="cline-any cline-yes">2x</span>
 <span class="cline-any cline-yes">2x</span>
@@ -1246,6 +1260,20 @@
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -1896,7 +1924,7 @@ router.get('/orders', [authMiddleware, adminAuthMiddleware], <span class="fstat-
 });
 &nbsp;
 router.put('/orders/:id/status', [authMiddleware, adminAuthMiddleware], [
-  body('status').isIn(['pending', 'completed', 'cancelled']).withMessage('状态无效')
+  body('status').isIn(['pending', 'processing', 'completed', 'cancelled']).withMessage('状态无效')
 ], <span class="fstat-no" title="function not covered" >as</span>ync (req, res) =&gt; {
   const validation = <span class="cstat-no" title="statement not covered" >db.validateRequest(req);</span>
 <span class="cstat-no" title="statement not covered" >  if (!validation.success) {</span>
@@ -1907,6 +1935,20 @@ router.put('/orders/:id/status', [authMiddleware, adminAuthMiddleware], [
 <span class="cstat-no" title="statement not covered" >  try {</span>
     const order = <span class="cstat-no" title="statement not covered" >await db.getOrderById(parseInt(id));</span>
 <span class="cstat-no" title="statement not covered" >    if (!order) <span class="cstat-no" title="statement not covered" >return res.status(404).json(db.errorResponse('订单不存在'));</span></span>
+&nbsp;
+<span class="cstat-no" title="statement not covered" >    if (order.type === 'secondhand') {</span>
+      const items = <span class="cstat-no" title="statement not covered" >typeof order.items === 'string' ? JSON.parse(order.items || '[]') : (order.items || []);</span>
+      const itemId = <span class="cstat-no" title="statement not covered" >items[0]?.itemId;</span>
+&nbsp;
+<span class="cstat-no" title="statement not covered" >      if (itemId) {</span>
+<span class="cstat-no" title="statement not covered" >        if (status === 'cancelled') {</span>
+<span class="cstat-no" title="statement not covered" >          await db.updateSecondhandItem(Number(itemId), { status: 'active' });</span>
+        } else <span class="cstat-no" title="statement not covered" >if (status === 'processing' || status === 'completed') {</span>
+<span class="cstat-no" title="statement not covered" >          await db.updateSecondhandItem(Number(itemId), { status: 'sold' });</span>
+        }
+      }
+    }
+&nbsp;
 <span class="cstat-no" title="statement not covered" >    await db.updateOrder(parseInt(id), { status });</span>
     const updated = <span class="cstat-no" title="statement not covered" >await db.getOrderById(parseInt(id));</span>
 <span class="cstat-no" title="statement not covered" >    res.json(db.successResponse({ ...updated, userId: updated.user_id, totalAmount: updated.total_amount, items: typeof updated.items === 'string' ? JSON.parse(updated.items || '[]') : updated.items }, '订单状态更新成功'));</span>
@@ -2053,7 +2095,7 @@ module.exports = router;
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-04-12T03:58:12.244Z
+                at 2026-04-15T06:34:50.161Z
             </div>
         <script src="../../prettify.js"></script>
         <script>

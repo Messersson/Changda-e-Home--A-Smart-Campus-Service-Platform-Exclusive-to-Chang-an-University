@@ -5,6 +5,7 @@ const logger = require('../utils/logger');
 class DatabaseConnectionManager {
   constructor() {
     this.pool = null;
+    this.poolOptions = null;
     this.isConnected = false;
     this.connectPromise = null;
     this.connectionChecker = null;
@@ -38,8 +39,8 @@ class DatabaseConnectionManager {
     this.connectPromise = (async () => {
       try {
         logger.info('[鏁版嵁搴揮 姝ｅ湪寤虹珛杩炴帴...');
-        
-        this.pool = mysql.createPool({
+
+        this.poolOptions = {
           host: process.env.DB_HOST || 'localhost',
           port: process.env.DB_PORT || 3306,
           user: process.env.DB_USER || 'root',
@@ -60,7 +61,9 @@ class DatabaseConnectionManager {
           bigNumberStrings: false,
           flags: '+MULTI_STATEMENTS,-FOUND_ROWS',
           ssl: false
-        });
+        };
+
+        this.pool = mysql.createPool(this.poolOptions);
 
         const connection = await this.pool.getConnection();
         logger.info('[鏁版嵁搴揮 杩炴帴鑾峰彇鎴愬姛锛屾祴璇曡繛鎺?..');
@@ -306,6 +309,14 @@ class DatabaseConnectionManager {
   }
 
   async getHealthStatus() {
+    if (!this.pool || !this.isConnected) {
+      return {
+        status: 'unhealthy',
+        connected: false,
+        error: 'Database pool is not ready'
+      };
+    }
+
     try {
       const [result] = await this.pool.query('SELECT 1 as health');
       const poolInfo = await this.getPoolInfo();
@@ -340,8 +351,8 @@ class DatabaseConnectionManager {
         threadsConnected: result[0]?.Value || 0,
         maxUsedConnections: result2[0]?.Value || 0,
         poolConfig: {
-          connectionLimit: this.pool.config.connectionLimit,
-          queueLimit: this.pool.config.queueLimit
+          connectionLimit: this.poolOptions?.connectionLimit || 0,
+          queueLimit: this.poolOptions?.queueLimit || 0
         }
       };
     } catch (error) {
@@ -359,6 +370,10 @@ class DatabaseConnectionManager {
   }
 
   async executeTransaction(callback) {
+    if (!this.isConnected || !this.pool) {
+      await this.connect();
+    }
+
     const connection = await this.pool.getConnection();
     
     try {
@@ -377,6 +392,5 @@ class DatabaseConnectionManager {
 }
 
 module.exports = new DatabaseConnectionManager();
-
 
 
