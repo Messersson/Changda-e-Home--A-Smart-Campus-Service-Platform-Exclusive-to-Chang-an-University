@@ -75,6 +75,9 @@
                 <el-tag size="small" effect="plain" :type="getStatusType(order.status)">
                   {{ getStatusText(order.status) }}
                 </el-tag>
+                <el-tag size="small" effect="plain" :type="getPaymentStatusType(getPaymentStatus(order))">
+                  {{ getPaymentStatusText(getPaymentStatus(order)) }}
+                </el-tag>
               </div>
               <h3>订单 #{{ order.id }}</h3>
               <p>{{ formatTime(order.createdAt) }}</p>
@@ -102,9 +105,17 @@
           </div>
 
           <div class="order-card__footer">
-            <span class="order-card__hint">{{ getOrderHint(order.status) }}</span>
+            <span class="order-card__hint">{{ getOrderHint(order) }}</span>
             <el-button
-              v-if="order.status === 'pending'"
+              v-if="canPay(order)"
+              type="primary"
+              :loading="Boolean(payingMap[orderKey(order)])"
+              @click="payOrder(order)"
+            >
+              去支付
+            </el-button>
+            <el-button
+              v-if="order.status === 'pending' && !isPaid(order)"
               type="danger"
               plain
               :loading="Boolean(cancellingMap[orderKey(order)])"
@@ -124,12 +135,16 @@ import { computed, onActivated, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { RefreshRight } from '@element-plus/icons-vue'
 import { drivingSchoolApi, secondhandApi, snackApi, supermarketApi, tutorApi } from '@/api'
+import { useRouter } from 'vue-router'
+import { startPaymentByOrderId } from '@/utils/paymentFlow'
 
 const loading = ref(false)
 const hasLoaded = ref(false)
 const activeType = ref('all')
 const statusFilter = ref('')
 const cancellingMap = ref({})
+const payingMap = ref({})
+const router = useRouter()
 
 const orderApiMap = {
   snack: snackApi,
@@ -267,6 +282,24 @@ const getStatusText = (status) => statusTextMap[status] || status || '未知状�
 
 const getStatusType = (status) => statusTypeMap[status] || 'info'
 
+const getPaymentStatus = (order) => order?.paymentStatus ?? order?.payment_status ?? 'unpaid'
+
+const isPaid = (order) => getPaymentStatus(order) === 'paid'
+
+const getPaymentStatusText = (status) => {
+  if (status === 'paid') return '已支付'
+  if (status === 'unpaid') return '未支付'
+  if (status === 'refunded') return '已退款'
+  return status || '未知'
+}
+
+const getPaymentStatusType = (status) => {
+  if (status === 'paid') return 'success'
+  if (status === 'unpaid') return 'warning'
+  if (status === 'refunded') return 'info'
+  return 'info'
+}
+
 const getItemName = (item) => {
   return item.snackName || item.productName || item.tutorName || item.title || item.schoolName || '未命名内容'
 }
@@ -309,7 +342,14 @@ const formatTime = (value) => {
   })
 }
 
-const getOrderHint = (status) => {
+const getOrderHint = (order) => {
+  const status = order?.status
+  const paymentStatus = getPaymentStatus(order || {})
+
+  if (paymentStatus !== 'paid' && status !== 'cancelled' && status !== 'completed') {
+    return '订单待支付，完成支付后将进入处理流程。'
+  }
+
   if (status === 'pending') {
     return '订单提交成功，平台处理前支持主动取消。'
   }
@@ -329,11 +369,35 @@ const getOrderHint = (status) => {
   return '订单状态已更新。'
 }
 
+const canPay = (order) => {
+  if (!order) return false
+  if (order.status === 'cancelled' || order.status === 'completed') return false
+  return getPaymentStatus(order) !== 'paid'
+}
+
 const replaceOrder = (type, updatedOrder) => {
   const normalized = normalizeOrder(updatedOrder, type)
   orderBuckets[type] = orderBuckets[type].map((item) => {
     return Number(item.id) === Number(normalized.id) ? normalized : item
   })
+}
+
+const payOrder = async (order) => {
+  const key = orderKey(order)
+  payingMap.value = {
+    ...payingMap.value,
+    [key]: true
+  }
+
+  try {
+    await startPaymentByOrderId(order.id, router)
+  } catch (error) {
+    console.error('创建支付单失败:', error)
+  } finally {
+    const nextMap = { ...payingMap.value }
+    delete nextMap[key]
+    payingMap.value = nextMap
+  }
 }
 
 const loadOrders = async () => {

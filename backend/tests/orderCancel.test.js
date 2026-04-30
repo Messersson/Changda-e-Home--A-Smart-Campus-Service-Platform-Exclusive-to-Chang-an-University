@@ -99,6 +99,22 @@ describe('User order cancel API', () => {
     expect(db.updateOrder).not.toHaveBeenCalled();
   });
 
+  test('should reject cancelling a paid snack order', async () => {
+    db.getOrderById.mockResolvedValue({
+      id: 12,
+      user_id: 1,
+      type: 'snack',
+      status: 'pending',
+      payment_status: 'paid'
+    });
+
+    const res = await request(app).put('/api/snack/orders/12/cancel');
+
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+    expect(db.updateOrder).not.toHaveBeenCalled();
+  });
+
   test('should cancel a pending supermarket order and restore stock', async () => {
     const pendingOrder = {
       id: 21,

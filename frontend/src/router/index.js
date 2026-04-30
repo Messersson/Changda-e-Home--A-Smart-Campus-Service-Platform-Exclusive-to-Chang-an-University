@@ -15,6 +15,16 @@ const routes = [
     meta: { requiresAuth: false, keepAlive: false }
   },
   {
+    path: '/pay/:paymentId',
+    name: 'PayCenter',
+    component: () => import('@/views/PayCenter.vue'),
+    meta: { requiresAuth: true, keepAlive: false, title: '订单支付' }
+  },
+  {
+    path: '/pay/mock/:paymentId',
+    redirect: (to) => `/pay/${to.params.paymentId}`
+  },
+  {
     path: '/',
     name: 'Home',
     component: () => import('@/views/Home.vue'),

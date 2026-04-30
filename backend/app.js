@@ -20,6 +20,7 @@ const drivingSchoolRoutes = require('./routes/drivingSchool');
 const studyMaterialRoutes = require('./routes/studyMaterial');
 const forumRoutes = require('./routes/forum');
 const adminRoutes = require('./routes/admin');
+const paymentRoutes = require('./routes/payments');
 
 const PORT = Number(process.env.PORT) || 3000;
 const REQUEST_TIMEOUT = Number(process.env.REQUEST_TIMEOUT_MS) || 60000;
@@ -97,6 +98,8 @@ function createApp() {
 
   app.disable('x-powered-by');
   app.use(cors(buildCorsOptions()));
+  app.use('/api/payments/wechat/notify', express.raw({ type: '*/*' }));
+  app.use('/api/payments/wechat/refund-notify', express.raw({ type: '*/*' }));
   app.use(express.json({ limit: JSON_LIMIT }));
   app.use(express.urlencoded({ extended: true, limit: JSON_LIMIT }));
   app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
@@ -128,6 +131,7 @@ function createApp() {
   app.use('/api/study-material', studyMaterialRoutes)
   app.use('/api/forum', forumRoutes)
   app.use('/api/admin', adminRoutes)
+  app.use('/api/payments', paymentRoutes)
 
   app.get('/api/health', async (req, res) => {
     try {

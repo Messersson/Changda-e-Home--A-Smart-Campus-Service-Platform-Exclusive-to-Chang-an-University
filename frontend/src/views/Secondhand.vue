@@ -148,6 +148,8 @@ import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Star } from '@element-plus/icons-vue'
 import { secondhandApi } from '@/api'
+import { useRouter } from 'vue-router'
+import { startPaymentByOrderId } from '@/utils/paymentFlow'
 
 const items = ref([])
 const favorites = ref([])
@@ -157,6 +159,7 @@ const filterForm = ref({
 })
 const detailDrawerVisible = ref(false)
 const selectedItem = ref(null)
+const router = useRouter()
 const publishDialogVisible = ref(false)
 const publishing = ref(false)
 const publishFormRef = ref(null)
@@ -262,10 +265,17 @@ const submitOrder = async () => {
 
     submittingOrder.value = true
     try {
-      await secondhandApi.createOrder(orderForm.value)
-      ElMessage.success('下单成功，可在“我的订单”中查看')
+      const orderResult = await secondhandApi.createOrder(orderForm.value)
+      const orderId = orderResult?.data?.orderId
+      if (!orderId) {
+        ElMessage.error('下单成功但未获取到订单号，请前往我的订单支付')
+        return
+      }
+
+      ElMessage.success('下单成功，正在进入支付页')
       orderDialogVisible.value = false
       resetOrderForm()
+      await startPaymentByOrderId(orderId, router)
     } catch (error) {
       console.error('二手商品下单失败:', error)
     } finally {

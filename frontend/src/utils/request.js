@@ -128,6 +128,10 @@ request.interceptors.response.use(
     const config = error.config
     cleanupPendingRequest(config)
 
+    if (config?.silent) {
+      return Promise.reject(error)
+    }
+
     if (!error.response && error.message?.includes('Network Error')) {
       const reconnected = await connectionManager.ensureConnection()
       if (reconnected && config) {

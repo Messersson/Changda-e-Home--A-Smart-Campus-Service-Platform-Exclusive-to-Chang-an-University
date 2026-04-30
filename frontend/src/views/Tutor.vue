@@ -156,6 +156,8 @@ import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { UserFilled, Reading, Money, Phone } from '@element-plus/icons-vue'
 import { tutorApi } from '@/api'
+import { useRouter } from 'vue-router'
+import { startPaymentByOrderId } from '@/utils/paymentFlow'
 
 const tutors = ref([])
 const filterForm = ref({
@@ -166,6 +168,7 @@ const filterForm = ref({
 })
 const detailDrawerVisible = ref(false)
 const selectedTutor = ref(null)
+const router = useRouter()
 const publishDialogVisible = ref(false)
 const publishing = ref(false)
 const publishFormRef = ref(null)
@@ -252,10 +255,17 @@ const submitOrder = async () => {
 
     submittingOrder.value = true
     try {
-      await tutorApi.createOrder(orderForm.value)
-      ElMessage.success('下单成功，可在“我的订单”中查看')
+      const orderResult = await tutorApi.createOrder(orderForm.value)
+      const orderId = orderResult?.data?.orderId
+      if (!orderId) {
+        ElMessage.error('下单成功但未获取到订单号，请前往我的订单支付')
+        return
+      }
+
+      ElMessage.success('下单成功，正在进入支付页')
       orderDialogVisible.value = false
       resetOrderForm()
+      await startPaymentByOrderId(orderId, router)
     } catch (error) {
       console.error('家教下单失败:', error)
     } finally {

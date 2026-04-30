@@ -221,11 +221,98 @@ class DatabaseInterface {
   async updateOrder(id, orderData) {
     const updateData = {};
     if (orderData.status !== undefined) updateData.status = orderData.status;
+    if (orderData.paymentStatus !== undefined) updateData.payment_status = orderData.paymentStatus;
+    if (orderData.paidAt !== undefined) updateData.paid_at = orderData.paidAt;
     if (orderData.address !== undefined) updateData.address = orderData.address;
     if (orderData.phone !== undefined) updateData.phone = orderData.phone;
     if (orderData.remark !== undefined) updateData.remark = orderData.remark;
-    
+     
     await DatabaseAdapter.update('orders', updateData, { id });
+    return { success: true };
+  }
+
+  async getPayments(where = {}) {
+    return await DatabaseAdapter.select('payments', where);
+  }
+
+  async getPaymentById(id) {
+    const payments = await DatabaseAdapter.select('payments', { id });
+    return payments[0] || null;
+  }
+
+  async getPaymentByOutTradeNo(outTradeNo) {
+    const payments = await DatabaseAdapter.select('payments', { out_trade_no: outTradeNo });
+    return payments[0] || null;
+  }
+
+  async getLatestActivePaymentByOrderId(orderId) {
+    const [rows] = await DatabaseAdapter.query(
+      'SELECT * FROM payments WHERE order_id = ? AND status = ? ORDER BY id DESC LIMIT 1',
+      [orderId, 'created']
+    );
+    return rows[0] || null;
+  }
+
+  async createPayment(paymentData) {
+    const result = await DatabaseAdapter.insert('payments', {
+      order_id: paymentData.orderId,
+      user_id: paymentData.userId,
+      provider: paymentData.provider,
+      out_trade_no: paymentData.outTradeNo,
+      amount: paymentData.amount,
+      status: paymentData.status || 'created',
+      pay_url: paymentData.payUrl
+    });
+
+    return { id: result.insertId };
+  }
+
+  async updatePayment(id, paymentData) {
+    const updateData = {};
+    if (paymentData.status !== undefined) updateData.status = paymentData.status;
+    if (paymentData.payUrl !== undefined) updateData.pay_url = paymentData.payUrl;
+    if (paymentData.paidAt !== undefined) updateData.paid_at = paymentData.paidAt;
+    if (paymentData.notifyPayload !== undefined) updateData.notify_payload = paymentData.notifyPayload;
+
+    await DatabaseAdapter.update('payments', updateData, { id });
+    return { success: true };
+  }
+
+  async createRefund(refundData) {
+    const result = await DatabaseAdapter.insert('refunds', {
+      payment_id: refundData.paymentId,
+      order_id: refundData.orderId,
+      user_id: refundData.userId,
+      provider: refundData.provider,
+      out_refund_no: refundData.outRefundNo,
+      refund_no: refundData.refundNo,
+      amount: refundData.amount,
+      reason: refundData.reason,
+      status: refundData.status || 'created',
+      raw_response: refundData.rawResponse
+    });
+
+    return { id: result.insertId };
+  }
+
+  async getRefundById(id) {
+    const refunds = await DatabaseAdapter.select('refunds', { id });
+    return refunds[0] || null;
+  }
+
+  async getRefundByOutRefundNo(outRefundNo) {
+    const refunds = await DatabaseAdapter.select('refunds', { out_refund_no: outRefundNo });
+    return refunds[0] || null;
+  }
+
+  async updateRefund(id, refundData) {
+    const updateData = {};
+    if (refundData.status !== undefined) updateData.status = refundData.status;
+    if (refundData.refundNo !== undefined) updateData.refund_no = refundData.refundNo;
+    if (refundData.rawResponse !== undefined) updateData.raw_response = refundData.rawResponse;
+    if (refundData.refundedAt !== undefined) updateData.refunded_at = refundData.refundedAt;
+
+    await DatabaseAdapter.update('refunds', updateData, { id });
     return { success: true };
   }
 

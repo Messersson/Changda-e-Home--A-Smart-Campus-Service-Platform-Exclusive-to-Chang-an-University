@@ -123,12 +123,15 @@ import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Location, Phone, Money } from '@element-plus/icons-vue'
 import { drivingSchoolApi } from '@/api'
+import { useRouter } from 'vue-router'
+import { startPaymentByOrderId } from '@/utils/paymentFlow'
 
 const schools = ref([])
 const detailDrawerVisible = ref(false)
 const inquiryDialogVisible = ref(false)
 const orderDialogVisible = ref(false)
 const selectedSchool = ref(null)
+const router = useRouter()
 const submittingInquiry = ref(false)
 const inquiryFormRef = ref(null)
 const inquiryForm = ref({
@@ -213,10 +216,17 @@ const submitOrder = async () => {
 
     submittingOrder.value = true
     try {
-      await drivingSchoolApi.createOrder(orderForm.value)
-      ElMessage.success('下单成功，可在“我的订单”中查看')
+      const orderResult = await drivingSchoolApi.createOrder(orderForm.value)
+      const orderId = orderResult?.data?.orderId
+      if (!orderId) {
+        ElMessage.error('下单成功但未获取到订单号，请前往我的订单支付')
+        return
+      }
+
+      ElMessage.success('下单成功，正在进入支付页')
       orderDialogVisible.value = false
       resetOrderForm()
+      await startPaymentByOrderId(orderId, router)
     } catch (error) {
       console.error('驾校报名下单失败:', error)
     } finally {

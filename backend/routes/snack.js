@@ -136,6 +136,10 @@ router.put('/orders/:id/cancel', authMiddleware, async (req, res) => {
       return res.status(400).json(db.errorResponse('当前订单状态不支持取消'));
     }
 
+    if (order.payment_status === 'paid') {
+      return res.status(400).json(db.errorResponse('订单已支付，暂不支持线上取消，请联系管理员处理'));
+    }
+
     await db.updateOrder(orderId, { status: 'cancelled' });
     const updatedOrder = await db.getOrderById(orderId);
 

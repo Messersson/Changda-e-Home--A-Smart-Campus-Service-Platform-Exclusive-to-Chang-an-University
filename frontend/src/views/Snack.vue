@@ -68,6 +68,8 @@
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { snackApi } from '@/api'
+import { useRouter } from 'vue-router'
+import { startPaymentByOrderId } from '@/utils/paymentFlow'
 
 const merchants = ref([])
 const snacks = ref([])
@@ -78,6 +80,7 @@ const orderItems = ref([])
 const remark = ref('')
 const submitting = ref(false)
 const selectedSnack = ref(null)
+const router = useRouter()
 
 const totalAmount = computed(() => {
   return orderItems.value.reduce((sum, item) => sum + item.subtotal, 0)
@@ -141,17 +144,24 @@ const submitOrder = async () => {
   }
   submitting.value = true
   try {
-    await snackApi.createOrder({
+    const orderResult = await snackApi.createOrder({
       items: orderItems.value.map(item => ({
         snackId: item.snackId,
         quantity: item.quantity
       })),
       remark: remark.value
     })
-    ElMessage.success('下单成功')
+    const orderId = orderResult?.data?.orderId
+    if (!orderId) {
+      ElMessage.error('下单成功但未获取到订单号，请前往我的订单支付')
+      return
+    }
+
+    ElMessage.success('下单成功，正在进入支付页')
     orderItems.value = []
     remark.value = ''
     orderDrawerVisible.value = false
+    await startPaymentByOrderId(orderId, router)
   } catch (error) {
     console.error('下单失败:', error)
   } finally {

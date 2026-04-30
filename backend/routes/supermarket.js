@@ -371,6 +371,10 @@ router.put('/orders/:id/cancel', authMiddleware, async (req, res) => {
         throw createHttpError(400, '当前订单状态不支持取消');
       }
 
+      if (order.payment_status === 'paid') {
+        throw createHttpError(400, '订单已支付，暂不支持线上取消，请联系管理员处理');
+      }
+
       const items = typeof order.items === 'string' ? JSON.parse(order.items || '[]') : (order.items || []);
 
       for (const item of items) {

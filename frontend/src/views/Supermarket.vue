@@ -129,6 +129,8 @@ import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { ShoppingCart, Grid, Delete } from '@element-plus/icons-vue'
 import { supermarketApi } from '@/api'
+import { useRouter } from 'vue-router'
+import { startPaymentByOrderId } from '@/utils/paymentFlow'
 
 const categories = ref([])
 const products = ref([])
@@ -138,6 +140,7 @@ const cart = ref(null)
 const cartDrawerVisible = ref(false)
 const checkoutDrawerVisible = ref(false)
 const submitting = ref(false)
+const router = useRouter()
 const checkoutForm = ref({
   address: '',
   phone: '',
@@ -256,12 +259,19 @@ const submitOrder = async () => {
   }
   submitting.value = true
   try {
-    await supermarketApi.checkout(checkoutForm.value)
-    ElMessage.success('下单成功')
+    const orderResult = await supermarketApi.checkout(checkoutForm.value)
+    const orderId = orderResult?.data?.orderId
+    if (!orderId) {
+      ElMessage.error('下单成功但未获取到订单号，请前往我的订单支付')
+      return
+    }
+
+    ElMessage.success('下单成功，正在进入支付页')
     checkoutForm.value = { address: '', phone: '', remark: '' }
     checkoutDrawerVisible.value = false
     cartDrawerVisible.value = false
     loadCart()
+    await startPaymentByOrderId(orderId, router)
   } catch (error) {
     console.error('下单失败:', error)
   } finally {
