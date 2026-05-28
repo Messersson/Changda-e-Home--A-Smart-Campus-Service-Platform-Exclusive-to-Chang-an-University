@@ -1,0 +1,7 @@
+target/
+logs/
+*.log
+.env
+.env.*
+node_modules/
+coverage/

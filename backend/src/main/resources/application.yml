@@ -1,0 +1,65 @@
+server:
+  port: ${SERVER_PORT:${PORT:3000}}
+  shutdown: graceful
+
+spring:
+  application:
+    name: chd-campus-service
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+  datasource:
+    url: jdbc:mysql://${DB_HOST:127.0.0.1}:${DB_PORT:3306}/${DB_NAME:changan_campus_service}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
+    username: ${DB_USER:root}
+    password: ${DB_PASSWORD:3709Lp}
+    hikari:
+      pool-name: campus-hikari
+      maximum-pool-size: ${DB_POOL_MAX_SIZE:12}
+      minimum-idle: ${DB_POOL_MIN_IDLE:2}
+      connection-timeout: 30000
+      validation-timeout: 5000
+  flyway:
+    enabled: ${FLYWAY_ENABLED:true}
+    baseline-on-migrate: true
+    baseline-version: ${FLYWAY_BASELINE_VERSION:0}
+    locations: classpath:db/migration
+  jackson:
+    time-zone: Asia/Shanghai
+    default-property-inclusion: non_null
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+      base-path: /actuator
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: when_authorized
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+  api-docs:
+    path: /v3/api-docs
+
+campus:
+  security:
+    jwt-secret: ${JWT_SECRET:replace-with-a-long-random-secret-at-least-32-bytes}
+    jwt-expiration-seconds: ${JWT_EXPIRES_SECONDS:7200}
+    cors-origins: ${CORS_ORIGINS:http://127.0.0.1:5173,http://localhost:5173,http://127.0.0.1:8080,http://localhost:8080}
+  verification:
+    expose-code: ${VERIFICATION_EXPOSE_CODE:true}
+  payment:
+    default-provider: ${PAYMENT_PROVIDER_DEFAULT:mock}
+    mock-enabled: ${PAYMENT_MOCK_ENABLED:true}
+    frontend-base-url: ${FRONTEND_BASE_URL:http://127.0.0.1:5173}
+
+logging:
+  level:
+    cn.edu.chd.campus: INFO
+    org.springframework.security: WARN

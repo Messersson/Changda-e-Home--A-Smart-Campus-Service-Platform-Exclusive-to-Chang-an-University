@@ -3,6 +3,10 @@ coverage/
 dist/
 logs/
 *.log
+Microsoft/
+output/
+target/
+backend/target/
 
 backend/.env
 frontend/.env.local

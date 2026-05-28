@@ -4,7 +4,9 @@
 **/coverage
 **/dist
 **/logs
+**/target
 logs
+output
 frontend/node_modules/.vite
 backend/logs
 frontend/dist/assets

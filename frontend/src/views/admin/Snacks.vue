@@ -47,7 +47,7 @@
           <el-input v-model="form.description" type="textarea" :rows="3" placeholder="请输入菜品描述" />
         </el-form-item>
         <el-form-item label="图片">
-          <el-input v-model="form.image" placeholder="请输入图片URL" />
+          <ImageDropInput v-model="form.image" />
         </el-form-item>
         <el-form-item label="状态">
           <el-switch v-model="form.status" active-text="上架" inactive-text="下架" />
@@ -65,6 +65,7 @@
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { adminApi } from '@/api'
+import ImageDropInput from '@/components/ImageDropInput.vue'
 
 const snacks = ref([])
 const dialogVisible = ref(false)

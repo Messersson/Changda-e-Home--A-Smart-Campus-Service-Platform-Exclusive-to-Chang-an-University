@@ -15,17 +15,12 @@ jobs:
         working-directory: backend
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-java@v4
         with:
-          node-version: 20
-          cache: npm
-          cache-dependency-path: backend/package-lock.json
-      - run: npm ci
-      - run: npm test
-        env:
-          NODE_ENV: test
-          JWT_SECRET: test-secret
-          JWT_EXPIRES_IN: 1d
+          distribution: temurin
+          java-version: 17
+          cache: maven
+      - run: mvn -B test
 
   frontend:
     runs-on: ubuntu-latest

@@ -113,7 +113,7 @@
           <el-input v-model="productForm.description" type="textarea" :rows="3" placeholder="请输入商品描述" />
         </el-form-item>
         <el-form-item label="图片">
-          <el-input v-model="productForm.image" placeholder="请输入图片URL" />
+          <ImageDropInput v-model="productForm.image" />
         </el-form-item>
         <el-form-item label="状态">
           <el-switch v-model="productForm.status" active-text="上架" inactive-text="下架" />
@@ -132,6 +132,7 @@ import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Grid } from '@element-plus/icons-vue'
 import { adminApi } from '@/api'
+import ImageDropInput from '@/components/ImageDropInput.vue'
 
 const categories = ref([])
 const products = ref([])

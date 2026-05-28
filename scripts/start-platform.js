@@ -1,385 +1,319 @@
 'use strict';
 
-const fs = require('fs');
-const path = require('path');
 const http = require('http');
 const net = require('net');
 const { spawn, spawnSync } = require('child_process');
+const path = require('path');
 
 const rootDir = path.resolve(__dirname, '..');
-const backendDir = path.join(rootDir, 'backend');
-const frontendDir = path.join(rootDir, 'frontend');
-const launcherLogsDir = path.join(rootDir, 'logs', 'launcher');
+const rawArgs = process.argv.slice(2).filter((arg) => arg !== '--hidden');
+const args = new Set(rawArgs);
 
-const backendPort = 3000;
-const frontendPorts = [5173, 5174, 5175, 5176, 5177, 5178, 5179, 5180];
-const backendHealthUrl = `http://127.0.0.1:${backendPort}/api/health`;
-
-const isWindows = process.platform === 'win32';
-const npmExecutable = isWindows ? 'npm.cmd' : 'npm';
-
-const args = new Set(process.argv.slice(2));
-const prefersHeadless = args.has('--headless');
-const prefersWindows = args.has('--windows');
-const disableBrowser = args.has('--no-browser');
-const wantsHelp = args.has('--help') || args.has('-h');
+const useProd = args.has('--prod');
 const wantsStop = args.has('--stop');
-const wantsRestartBackend = args.has('--restart-backend') || args.has('--restart-all');
-const wantsRestartFrontend = args.has('--restart-frontend') || args.has('--restart-all');
-const startTimeoutMs = Number(process.env.PLATFORM_START_TIMEOUT_MS) || 90000;
-const requestTimeoutMs = Number(process.env.PLATFORM_REQUEST_TIMEOUT_MS) || 1200;
-const pollIntervalMs = 1200;
-const runInHeadlessMode = !isWindows || prefersHeadless || !prefersWindows;
+const disableBrowser = args.has('--no-browser');
+const noBuild = args.has('--no-build');
+const forceRebuild = args.has('--rebuild') || args.has('--build');
+const checkOnly = args.has('--check');
+const wantsHelp = args.has('--help') || args.has('-h');
 
-const backendService = {
-  key: 'backend',
-  label: '后端',
-  title: 'CHD-Backend',
-  heading: 'CHD Campus Platform - Backend',
-  cwd: backendDir,
-  npmArgs: ['start'],
-  pidFileName: 'backend.pid',
-  stdoutFileName: 'backend.out.log',
-  stderrFileName: 'backend.err.log'
-};
-
-const frontendService = {
-  key: 'frontend',
-  label: '前端',
-  title: 'CHD-Frontend',
-  heading: 'CHD Campus Platform - Frontend',
-  cwd: frontendDir,
-  npmArgs: ['run', 'dev'],
-  pidFileName: 'frontend.pid',
-  stdoutFileName: 'frontend.out.log',
-  stderrFileName: 'frontend.err.log'
-};
-
-function printBanner() {
-  console.log('========================================');
-  console.log('长安大学校园服务平台 - 一键启动');
-  console.log('========================================');
-  console.log('');
-}
-
-function printHelp() {
-  console.log('用法: node scripts/start-platform.js [选项]');
-  console.log('');
-  console.log('选项:');
-  console.log('  --headless    以后台模式启动服务');
-  console.log('  --windows     为前后端分别打开独立终端窗口');
-  console.log('  --no-browser  启动后不自动打开浏览器');
-  console.log('  --stop        停止前端和后端服务');
-  console.log('  --restart-backend  重启后端服务');
-  console.log('  --restart-frontend 重启前端服务');
-  console.log('  --restart-all 重启前端和后端');
-  console.log('  -h, --help    显示帮助信息');
-}
+const composeFile = useProd ? 'docker-compose.prod.yml' : 'docker-compose.dev.yml';
+const composeProject = useProd ? 'chd-campus-prod' : 'chd-campus-dev';
+const modeName = useProd ? '生产模式' : '开发模式';
+const frontendUrl = useProd ? 'http://127.0.0.1:8080' : 'http://127.0.0.1:5173';
+const frontendPort = useProd ? 8080 : 5173;
+const dbName = useProd ? process.env.DB_NAME || 'changan_campus_service' : 'changan_campus_service';
+const dbUser = useProd ? process.env.DB_USER || 'campus' : 'root';
+const dbPassword = useProd ? process.env.DB_PASSWORD || '3709Lp' : '3709Lp';
+const dbAddress = useProd ? 'mysql:3306 (container network)' : '127.0.0.1:3306 (host MySQL)';
+const backendBaseUrl = 'http://127.0.0.1:3000';
+const backendPort = 3000;
+const backendHealthUrl = `${backendBaseUrl}/api/health`;
+const appImages = [`${composeProject}-backend:latest`, `${composeProject}-frontend:latest`];
+const dockerHubImages = [
+  'mysql:8.4',
+  'maven:3.9-eclipse-temurin-17',
+  'eclipse-temurin:17-jre',
+  'node:20-alpine',
+  'nginx:1.27-alpine'
+];
 
 function log(message) {
-  console.log(`[启动器] ${message}`);
+  console.log(`[平台] ${message}`);
 }
 
 function warn(message) {
-  console.warn(`[启动器] ${message}`);
+  console.error(`[平台] ${message}`);
 }
 
 function fail(message) {
-  console.error(`[启动器] ${message}`);
+  console.error(`[平台] ${message}`);
   process.exit(1);
+}
+
+function blankLine() {
+  console.log('');
+}
+
+function printBanner() {
+  console.log('============================================================');
+  console.log('长安大学校园服务平台启动器');
+  console.log(`运行模式: ${modeName}`);
+  console.log(`编排文件: ${composeFile}`);
+  console.log('============================================================');
+}
+
+function printHelp() {
+  printBanner();
+  console.log('用法: node scripts/start-platform.js [选项]');
+  blankLine();
+  console.log('常用选项:');
+  console.log('  --check       只检查 Docker、Compose 配置和访问地址');
+  console.log('  --stop        停止当前模式的 Docker Compose 服务');
+  console.log('  --prod        使用生产编排文件，前端端口为 8080');
+  console.log('  --no-browser  启动成功后不自动打开浏览器');
+  console.log('  --no-build    只使用本地已有镜像启动，不执行构建');
+  console.log('  --rebuild     强制重新构建前端和后端镜像');
+  console.log('  -h, --help    显示帮助信息');
+  blankLine();
+  console.log('提速说明: 默认会自动检测本地镜像。镜像已存在时跳过构建，镜像缺失时才构建。');
+}
+
+function printAddresses() {
+  blankLine();
+  console.log('访问地址');
+  console.log(`  前端用户端: ${frontendUrl}`);
+  console.log(`  前端管理端: ${frontendUrl}/admin`);
+  console.log(`  后端接口:   ${backendBaseUrl}/api`);
+  console.log(`  后端健康:   ${backendHealthUrl}`);
+  console.log(`  接口文档:   ${backendBaseUrl}/swagger-ui.html`);
+  console.log(`  数据库地址: ${dbAddress}`);
+  console.log(`  数据库名称: ${dbName}`);
+  console.log(`  数据库账号: ${dbUser}`);
+  console.log(`  数据库密码: ${dbPassword}`);
+  blankLine();
+}
+
+function commandLine(command, commandArgs) {
+  return [command, ...commandArgs].join(' ');
+}
+
+function dockerEnv(extra = {}) {
+  return {
+    ...process.env,
+    COMPOSE_PROGRESS: 'quiet',
+    BUILDKIT_PROGRESS: 'auto',
+    DOCKER_BUILDKIT: '1',
+    ...extra
+  };
+}
+
+function probe(command, commandArgs) {
+  const result = spawnSync(command, commandArgs, {
+    cwd: rootDir,
+    encoding: 'utf8',
+    shell: false,
+    stdio: 'pipe',
+    windowsHide: true,
+    env: dockerEnv()
+  });
+
+  return {
+    ok: result.status === 0,
+    status: result.status,
+    stdout: result.stdout || '',
+    stderr: result.stderr || '',
+    error: result.error
+  };
+}
+
+function outputText(result) {
+  return [result.stderr, result.stdout, result.error && result.error.message]
+    .filter(Boolean)
+    .join('\n')
+    .trim();
+}
+
+function explainFailure(output) {
+  const text = output.toLowerCase();
+
+  if (text.includes('permission denied') && text.includes('docker')) {
+    warn('Docker 已安装，但当前终端没有权限访问 Docker 引擎。');
+    warn('请确认 Docker Desktop 已启动，并在有 Docker 权限的终端中运行启动器。');
+    return;
+  }
+
+  if (
+    text.includes('failed to fetch anonymous token') ||
+    text.includes('auth.docker.io') ||
+    text.includes('registry-1.docker.io') ||
+    text.includes('docker.io')
+  ) {
+    warn('Docker Hub 基础镜像拉取失败，通常是网络、代理或镜像源问题。');
+    warn(`本项目需要的基础镜像: ${dockerHubImages.join(', ')}`);
+    warn('网络恢复后重新运行启动器即可。若前后端镜像已经存在，可使用 --no-build 快速启动。');
+    return;
+  }
+
+  if (text.includes('no such image') || text.includes('pull access denied')) {
+    warn('本地缺少前端或后端镜像，无法使用 --no-build。');
+    warn('请去掉 --no-build 让启动器执行首次构建，或使用 --rebuild 强制重建。');
+  }
+}
+
+function failProbe(label, command, commandArgs, result) {
+  const output = outputText(result);
+  warn(`${label}失败: ${commandLine(command, commandArgs)}`);
+  if (output) {
+    console.error(output);
+    explainFailure(output);
+  }
+  process.exit(1);
+}
+
+function requireProbe(label, command, commandArgs) {
+  const result = probe(command, commandArgs);
+  if (!result.ok) {
+    failProbe(label, command, commandArgs, result);
+  }
+  return result;
+}
+
+function tail(text, maxLines = 80) {
+  const lines = String(text || '').trim().split(/\r?\n/).filter(Boolean);
+  return lines.slice(Math.max(0, lines.length - maxLines)).join('\n');
+}
+
+function run(command, commandArgs, options = {}) {
+  const quiet = options.quiet !== false;
+  const progressMessage = options.progressMessage || '命令正在执行';
+  const progressIntervalMs = options.progressIntervalMs || 15000;
+
+  return new Promise((resolve, reject) => {
+    let output = '';
+    let elapsedTicks = 0;
+    const remember = (chunk) => {
+      output += chunk;
+      if (output.length > 60000) {
+        output = output.slice(output.length - 60000);
+      }
+    };
+
+    const child = spawn(command, commandArgs, {
+      cwd: rootDir,
+      env: dockerEnv(),
+      stdio: ['ignore', 'pipe', 'pipe'],
+      shell: false,
+      windowsHide: true
+    });
+
+    const timer = quiet
+      ? setInterval(() => {
+          elapsedTicks += 1;
+          log(`${progressMessage}，已等待 ${Math.round((elapsedTicks * progressIntervalMs) / 1000)} 秒`);
+        }, progressIntervalMs)
+      : null;
+
+    child.stdout.on('data', (chunk) => {
+      remember(chunk.toString());
+      if (!quiet) {
+        process.stdout.write(chunk);
+      }
+    });
+
+    child.stderr.on('data', (chunk) => {
+      remember(chunk.toString());
+      if (!quiet) {
+        process.stderr.write(chunk);
+      }
+    });
+
+    child.on('error', (error) => {
+      if (timer) {
+        clearInterval(timer);
+      }
+      error.output = output;
+      reject(error);
+    });
+
+    child.on('close', (code) => {
+      if (timer) {
+        clearInterval(timer);
+      }
+
+      if (code === 0) {
+        resolve(output);
+      } else {
+        const error = new Error(`${commandLine(command, commandArgs)} 退出码 ${code}`);
+        error.output = output;
+        reject(error);
+      }
+    });
+  });
 }
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function runCommand(command, commandArgs) {
-  return spawnSync(command, commandArgs, {
-    cwd: rootDir,
-    encoding: 'utf8',
-    windowsHide: true
-  });
-}
-
-function parseWindowsPortPids(output, port) {
-  return String(output || '')
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .filter((line) => line.includes(`:${port}`) && line.includes('LISTENING'))
-    .map((line) => line.split(/\s+/).pop())
-    .map((pid) => Number.parseInt(pid, 10))
-    .filter((pid) => Number.isFinite(pid) && pid > 0);
-}
-
-function getListeningPidsByPort(port) {
-  if (isWindows) {
-    const result = runCommand('cmd.exe', [
-      '/d',
-      '/c',
-      `netstat -ano -p tcp | findstr LISTENING | findstr :${port}`
-    ]);
-    return [...new Set(parseWindowsPortPids(result.stdout, port))];
-  }
-
-  const result = runCommand('lsof', ['-ti', `tcp:${port}`]);
-  return String(result.stdout || '')
-    .split(/\r?\n/)
-    .map((line) => Number.parseInt(line.trim(), 10))
-    .filter((pid) => Number.isFinite(pid) && pid > 0);
-}
-
-function terminatePid(pid) {
-  if (!Number.isFinite(pid) || pid <= 0) {
-    return false;
-  }
-
-  try {
-    process.kill(pid);
-    return true;
-  } catch (error) {
-    return false;
-  }
-}
-
-async function waitForPortsToClose(ports, timeoutMs = 15000) {
-  const deadline = Date.now() + timeoutMs;
-
-  while (Date.now() < deadline) {
-    const openPorts = ports.filter((port) => getListeningPidsByPort(port).length > 0);
-
-    if (openPorts.length === 0) {
-      return true;
-    }
-
-    await sleep(400);
-  }
-
-  return false;
-}
-
-async function stopServices(options = {}) {
-  const stopBackend = options.backend !== false;
-  const stopFrontend = options.frontend !== false;
-  const pids = [];
-
-  if (stopBackend) {
-    const backendPid = readPidFile(backendService);
-    if (backendPid) {
-      pids.push(backendPid);
-    }
-  }
-
-  if (stopFrontend) {
-    const frontendPid = readPidFile(frontendService);
-    if (frontendPid) {
-      pids.push(frontendPid);
-    }
-  }
-
-  if (stopBackend) {
-    pids.push(...getListeningPidsByPort(backendPort));
-  }
-
-  if (stopFrontend) {
-    frontendPorts.forEach((port) => {
-      pids.push(...getListeningPidsByPort(port));
-    });
-  }
-
-  const uniquePids = [...new Set(pids)];
-
-  if (uniquePids.length === 0) {
-    log('未检测到需要停止的前端或后端进程。');
-    return;
-  }
-
-  uniquePids.forEach((pid) => {
-    if (terminatePid(pid)) {
-      log(`已发起停止进程 PID=${pid}`);
-    } else {
-      warn(`停止进程失败，PID=${pid}`);
-    }
-  });
-
-  const portsToCheck = [];
-  if (stopBackend) {
-    portsToCheck.push(backendPort);
-  }
-  if (stopFrontend) {
-    portsToCheck.push(...frontendPorts);
-  }
-
-  const closed = await waitForPortsToClose(portsToCheck);
-  if (!closed) {
-    warn('部分端口在等待后仍未关闭，请手动检查任务管理器或进程列表。');
-  }
-  if (stopBackend) {
-    removePidFile(backendService);
-  }
-  if (stopFrontend) {
-    removePidFile(frontendService);
-  }
-}
-
-function ensureDir(dirPath) {
-  fs.mkdirSync(dirPath, { recursive: true });
-}
-
-function getPidFilePath(service) {
-  return path.join(launcherLogsDir, service.pidFileName);
-}
-
-function writePidFile(service, pid) {
-  if (!Number.isFinite(pid) || pid <= 0) {
-    return;
-  }
-
-  ensureDir(launcherLogsDir);
-  fs.writeFileSync(getPidFilePath(service), String(pid), 'utf8');
-}
-
-function readPidFile(service) {
-  const pidFilePath = getPidFilePath(service);
-
-  if (!fs.existsSync(pidFilePath)) {
-    return null;
-  }
-
-  const pid = Number.parseInt(fs.readFileSync(pidFilePath, 'utf8').trim(), 10);
-  return Number.isFinite(pid) && pid > 0 ? pid : null;
-}
-
-function removePidFile(service) {
-  const pidFilePath = getPidFilePath(service);
-
-  if (fs.existsSync(pidFilePath)) {
-    fs.unlinkSync(pidFilePath);
-  }
-}
-
-function ensureFileExists(filePath, label) {
-  if (!fs.existsSync(filePath)) {
-    fail(`缺少 ${label}: ${path.relative(rootDir, filePath)}`);
-  }
-}
-
-function commandExists(commandName) {
-  const lookupCommand = isWindows ? 'where.exe' : 'which';
-  const result = spawnSync(lookupCommand, [commandName], { stdio: 'ignore' });
-  return result.status === 0;
-}
-
-function ensureEnvironment() {
-  ensureFileExists(path.join(backendDir, 'package.json'), 'backend/package.json');
-  ensureFileExists(path.join(frontendDir, 'package.json'), 'frontend/package.json');
-
-  if (!commandExists('node')) {
-    fail('未在 PATH 中找到 Node.js。');
-  }
-
-  if (!commandExists(npmExecutable)) {
-    fail(`未在 PATH 中找到 ${npmExecutable}。`);
-  }
-
-  if (!fs.existsSync(path.join(backendDir, 'node_modules'))) {
-    fail('后端依赖缺失，请先执行 `cd backend && npm install`。');
-  }
-
-  if (!fs.existsSync(path.join(frontendDir, 'node_modules'))) {
-    fail('前端依赖缺失，请先执行 `cd frontend && npm install`。');
-  }
-
-  if (!isWindows && prefersWindows) {
-    warn('--windows 仅支持 Windows，已自动切换为后台模式。');
-  }
-}
-
-function httpGet(url) {
+function httpOk(url) {
   return new Promise((resolve) => {
-    let settled = false;
-
-    function finish(result) {
-      if (!settled) {
-        settled = true;
-        resolve(result);
-      }
-    }
-
-    const request = http.get(url, (response) => {
-      let body = '';
-
-      response.setEncoding('utf8');
-      response.on('data', (chunk) => {
-        body += chunk;
-      });
-      response.on('end', () => {
-        finish({
-          ok: true,
-          statusCode: response.statusCode,
-          body
-        });
-      });
+    const request = http.get(url, { timeout: 3000 }, (response) => {
+      response.resume();
+      resolve(response.statusCode >= 200 && response.statusCode < 400);
     });
 
-    request.setTimeout(requestTimeoutMs, () => {
-      request.destroy(new Error('timeout'));
+    request.on('timeout', () => {
+      request.destroy();
+      resolve(false);
     });
 
-    request.on('error', (error) => {
-      finish({
-        ok: false,
-        error
-      });
-    });
+    request.on('error', () => resolve(false));
   });
 }
 
-function isProjectFrontendHtml(html) {
-  if (typeof html !== 'string' || !html) {
-    return false;
+async function waitFor(url, label, timeoutMs = 120000) {
+  const startedAt = Date.now();
+  let lastReport = 0;
+
+  while (Date.now() - startedAt < timeoutMs) {
+    if (await httpOk(url)) {
+      log(`${label}已就绪: ${url}`);
+      return;
+    }
+
+    const elapsedSeconds = Math.round((Date.now() - startedAt) / 1000);
+    if (elapsedSeconds - lastReport >= 10) {
+      lastReport = elapsedSeconds;
+      log(`正在等待${label}就绪，已等待 ${elapsedSeconds} 秒`);
+    }
+
+    await sleep(1500);
   }
 
-  return html.includes('<div id="app"></div>') && html.includes('/src/main.js');
+  fail(`${label}在 ${Math.round(timeoutMs / 1000)} 秒内未就绪: ${url}`);
 }
 
-async function isBackendReady() {
-  const result = await httpGet(backendHealthUrl);
+function composeArgs(...commandArgs) {
+  return ['compose', '-p', composeProject, '-f', composeFile, ...commandArgs];
+}
 
-  if (!result.ok || result.statusCode !== 200) {
-    return false;
+function runDocker(commandArgs, options = {}) {
+  return run('docker', commandArgs, options);
+}
+
+function targetComposeServicesRunning() {
+  const result = probe('docker', composeArgs('ps', '--services', '--status', 'running'));
+  if (!result.ok) {
+    return new Set();
   }
 
-  try {
-    const payload = JSON.parse(result.body);
-    return payload.status === 'ok';
-  } catch (error) {
-    return false;
-  }
+  return new Set(result.stdout.split(/\r?\n/).map((line) => line.trim()).filter(Boolean));
 }
 
-async function detectFrontendUrl() {
-  const results = await Promise.all(
-    frontendPorts.map(async (port) => {
-      const url = `http://127.0.0.1:${port}`;
-      const result = await httpGet(url);
-
-      if (result.ok && result.statusCode === 200 && isProjectFrontendHtml(result.body)) {
-        return url;
-      }
-
-      return null;
-    })
-  );
-
-  return results.find(Boolean) || null;
-}
-
-function isTcpPortOpen(port) {
+function portOpen(port) {
   return new Promise((resolve) => {
-    const socket = net.createConnection({ port, host: '127.0.0.1' });
-
-    socket.setTimeout(800);
+    const socket = net.createConnection({ host: '127.0.0.1', port, timeout: 1000 });
     socket.on('connect', () => {
       socket.destroy();
       resolve(true);
@@ -388,29 +322,95 @@ function isTcpPortOpen(port) {
       socket.destroy();
       resolve(false);
     });
-    socket.on('error', () => {
-      resolve(false);
-    });
+    socket.on('error', () => resolve(false));
   });
 }
 
-async function waitFor(checker, label) {
-  const deadline = Date.now() + startTimeoutMs;
+async function guardAgainstForeignPorts() {
+  const runningServices = targetComposeServicesRunning();
+  const checks = [
+    { port: frontendPort, service: 'frontend', label: '前端' },
+    { port: backendPort, service: 'backend', label: '后端' }
+  ];
 
-  while (Date.now() < deadline) {
-    const result = await checker();
-    if (result) {
-      return result;
+  for (const item of checks) {
+    if (runningServices.has(item.service)) {
+      continue;
     }
 
-    await sleep(pollIntervalMs);
+    if (await portOpen(item.port)) {
+      fail(
+        `${item.label}端口 ${item.port} 已被其他程序占用。请先关闭占用该端口的旧项目，再重新运行启动器。`
+      );
+    }
   }
-
-  fail(`${label}在 ${Math.floor(startTimeoutMs / 1000)} 秒内未就绪。`);
 }
 
-function toPowerShellLiteral(value) {
-  return String(value).replace(/'/g, "''");
+function imageExists(image) {
+  return probe('docker', ['image', 'inspect', image]).ok;
+}
+
+function missingAppImages() {
+  return appImages.filter((image) => !imageExists(image));
+}
+
+function chooseStartPlan() {
+  if (noBuild && forceRebuild) {
+    fail('--no-build 和 --rebuild 不能同时使用。');
+  }
+
+  if (forceRebuild) {
+    return {
+      name: '强制重建启动',
+      args: composeArgs('up', '-d', '--build', '--quiet-build', '--quiet-pull'),
+      quiet: true,
+      progressMessage: '正在重新构建并启动服务'
+    };
+  }
+
+  if (noBuild) {
+    return {
+      name: '快速启动',
+      args: composeArgs('up', '-d', '--no-build', '--quiet-pull'),
+      quiet: true,
+      progressMessage: '正在使用本地镜像启动服务'
+    };
+  }
+
+  const missing = missingAppImages();
+  if (missing.length === 0) {
+    log('检测到本地前端和后端镜像，使用快速启动并跳过构建。');
+    log('如果修改过前端或后端代码，请使用 --rebuild 重新构建。');
+    return {
+      name: '智能快速启动',
+      args: composeArgs('up', '-d', '--no-build', '--quiet-pull'),
+      quiet: true,
+      progressMessage: '正在快速启动服务'
+    };
+  }
+
+  log(`缺少本地镜像: ${missing.join(', ')}`);
+  log('将执行首次构建。首次构建需要下载基础镜像和依赖，后续启动会明显更快。');
+  return {
+    name: '首次构建启动',
+    args: composeArgs('up', '-d', '--build', '--quiet-build', '--quiet-pull'),
+    quiet: true,
+    progressMessage: '正在构建镜像并启动服务'
+  };
+}
+
+function preflight() {
+  const dockerCli = requireProbe('Docker CLI 检查', 'docker', ['--version']);
+  log(`Docker CLI: ${dockerCli.stdout.trim()}`);
+
+  const compose = requireProbe('Docker Compose 检查', 'docker', ['compose', 'version']);
+  log(`Docker Compose: ${compose.stdout.trim()}`);
+
+  const engine = requireProbe('Docker 引擎检查', 'docker', ['info', '--format', '{{.ServerVersion}}']);
+  log(`Docker 引擎: ${engine.stdout.trim()}`);
+
+  requireProbe('Compose 配置检查', 'docker', composeArgs('config'));
+  log(`Compose 配置有效: ${composeFile}`);
 }
 
 function openBrowser(url) {
@@ -418,216 +418,16 @@ function openBrowser(url) {
     return;
   }
 
-  if (isWindows) {
-    const child = spawn('cmd.exe', ['/d', '/c', 'start', '', url], {
-      cwd: rootDir,
-      stdio: 'ignore',
-      windowsHide: true
-    });
-    child.unref();
-    return;
-  }
-
-  if (process.platform === 'darwin') {
-    const child = spawn('open', [url], { cwd: rootDir, stdio: 'ignore' });
-    child.unref();
-    return;
-  }
-
-  const child = spawn('xdg-open', [url], { cwd: rootDir, stdio: 'ignore' });
-  child.unref();
-}
-
-function buildWindowsLauncherScript(service) {
-  const lines = [
-    '@echo off',
-    'chcp 65001 >nul',
-    'setlocal',
-    '',
-    `title ${service.title}`,
-    'echo ========================================',
-    `echo ${service.heading}`,
-    'echo ========================================',
-    'echo.',
-    'echo Working directory: %CD%',
-    'echo Command: ' + [npmExecutable, ...service.npmArgs].join(' '),
-    'echo.',
-    `call ${npmExecutable} ${service.npmArgs.join(' ')}`,
-    'set "exitCode=%errorlevel%"',
-    'echo.',
-    'if not "%exitCode%"=="0" (',
-    '  echo Process exited with code %exitCode%.',
-    ') else (',
-    '  echo Process exited normally.',
-    ')',
-    'echo.',
-    'echo Press any key to close this window.',
-    'pause >nul',
-    'exit /b %exitCode%',
-    ''
-  ];
-
-  return lines.join('\r\n');
-}
-
-function writeWindowsLauncherScript(service) {
-  ensureDir(launcherLogsDir);
-
-  const scriptPath = path.join(launcherLogsDir, `${service.key}-window.cmd`);
-  fs.writeFileSync(scriptPath, buildWindowsLauncherScript(service), 'utf8');
-  return scriptPath;
-}
-
-function startGuiTerminal(service) {
-  const launcherScriptPath = writeWindowsLauncherScript(service);
-  const child = spawn(
-    'cmd.exe',
-    ['/d', '/c', 'start', '', 'cmd.exe', '/d', '/k', launcherScriptPath],
-    {
-      cwd: service.cwd,
-      detached: true,
-      stdio: 'ignore',
-      windowsHide: false
-    }
-  );
-
-  child.unref();
-  return launcherScriptPath;
-}
-
-function startHiddenWindowsProcess(service) {
-  ensureDir(launcherLogsDir);
-
-  const stdoutPath = path.join(launcherLogsDir, service.stdoutFileName);
-  const stderrPath = path.join(launcherLogsDir, service.stderrFileName);
-  const commandText = [npmExecutable, ...service.npmArgs].join(' ');
-
-  fs.writeFileSync(stdoutPath, '', 'utf8');
-  fs.writeFileSync(stderrPath, '', 'utf8');
-
-  const powerShellCommand = [
-    `$workingDir = '${toPowerShellLiteral(service.cwd)}'`,
-    `$stdout = '${toPowerShellLiteral(stdoutPath)}'`,
-    `$stderr = '${toPowerShellLiteral(stderrPath)}'`,
-    `$command = '${toPowerShellLiteral(commandText)}'`,
-    `$process = Start-Process -FilePath 'cmd.exe' -ArgumentList @('/d', '/s', '/c', $command) -WorkingDirectory $workingDir -RedirectStandardOutput $stdout -RedirectStandardError $stderr -WindowStyle Hidden -PassThru`,
-    `[Console]::Out.Write($process.Id)`
-  ].join('; ');
-
-  const result = spawnSync(
-    'powershell.exe',
-    ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', powerShellCommand],
-    {
-      cwd: service.cwd,
-      encoding: 'utf8',
-      windowsHide: true
-    }
-  );
-
-  if (result.status !== 0) {
-    const details = (result.stderr || result.stdout || '').trim();
-    fail(`以隐藏模式启动${service.label}失败。${details ? ` ${details}` : ''}`);
-  }
-
-  const pid = Number.parseInt((result.stdout || '').trim(), 10);
-
-  const processInfo = {
-    pid: Number.isFinite(pid) ? pid : null,
-    stdoutPath,
-    stderrPath
-  };
-
-  writePidFile(service, processInfo.pid);
-  return processInfo;
-}
-
-function startHeadlessProcess(service) {
-  if (isWindows) {
-    return startHiddenWindowsProcess(service);
-  }
-
-  ensureDir(launcherLogsDir);
-
-  const stdoutPath = path.join(launcherLogsDir, service.stdoutFileName);
-  const stderrPath = path.join(launcherLogsDir, service.stderrFileName);
-  const stdoutFd = fs.openSync(stdoutPath, 'w');
-  const stderrFd = fs.openSync(stderrPath, 'w');
-  const child = spawn(npmExecutable, service.npmArgs, {
-    cwd: service.cwd,
+  const isWindows = process.platform === 'win32';
+  const command = isWindows ? 'cmd.exe' : process.platform === 'darwin' ? 'open' : 'xdg-open';
+  const commandArgs = isWindows ? ['/d', '/c', 'start', '', url] : [url];
+  const child = spawn(command, commandArgs, {
+    cwd: rootDir,
+    stdio: 'ignore',
     detached: true,
-    stdio: ['ignore', stdoutFd, stderrFd]
+    windowsHide: true
   });
-
   child.unref();
-
-  const processInfo = {
-    pid: child.pid,
-    stdoutPath,
-    stderrPath
-  };
-
-  writePidFile(service, processInfo.pid);
-  return processInfo;
-}
-
-async function launchBackend() {
-  const alreadyRunning = await isBackendReady();
-  if (alreadyRunning) {
-    log('检测到后端已在运行，直接复用现有服务。');
-    return { reused: true };
-  }
-
-  const occupied = await isTcpPortOpen(backendPort);
-  if (occupied) {
-    fail(`端口 ${backendPort} 已被其他进程占用。`);
-  }
-
-  if (runInHeadlessMode) {
-    log('正在后台启动后端...');
-    const result = startHeadlessProcess(backendService);
-    log(`后端进程已启动，PID：${result.pid}`);
-    log(`后端标准输出日志：${path.relative(rootDir, result.stdoutPath)}`);
-    log(`后端错误日志：${path.relative(rootDir, result.stderrPath)}`);
-  } else {
-    log('正在为后端打开独立终端窗口...');
-    const scriptPath = startGuiTerminal(backendService);
-    log(`后端启动脚本：${path.relative(rootDir, scriptPath)}`);
-  }
-
-  return { reused: false };
-}
-
-async function waitForBackendReady() {
-  await waitFor(isBackendReady, '后端服务');
-  log(`后端已就绪：${backendHealthUrl}`);
-}
-
-async function launchFrontend() {
-  const existingUrl = await detectFrontendUrl();
-  if (existingUrl) {
-    log(`检测到前端已在运行，直接复用：${existingUrl}`);
-    return { reused: true, url: existingUrl };
-  }
-
-  if (runInHeadlessMode) {
-    log('正在后台启动前端...');
-    const result = startHeadlessProcess(frontendService);
-    log(`前端进程已启动，PID：${result.pid}`);
-    log(`前端标准输出日志：${path.relative(rootDir, result.stdoutPath)}`);
-    log(`前端错误日志：${path.relative(rootDir, result.stderrPath)}`);
-  } else {
-    log('正在为前端打开独立终端窗口...');
-    const scriptPath = startGuiTerminal(frontendService);
-    log(`前端启动脚本：${path.relative(rootDir, scriptPath)}`);
-  }
-
-  return { reused: false, url: null };
-}
-
-async function waitForFrontendReady() {
-  const frontendUrl = await waitFor(detectFrontendUrl, '前端服务');
-  log(`前端已就绪：${frontendUrl}`);
-  return frontendUrl;
 }
 
 async function main() {
@@ -637,52 +437,53 @@ async function main() {
   }
 
   printBanner();
-  ensureEnvironment();
+  preflight();
 
-  if (wantsStop) {
-    await stopServices({ backend: true, frontend: true });
-    log('平台服务已停止。');
+  if (!wantsStop) {
+    printAddresses();
+  }
+
+  if (checkOnly) {
+    log('启动器检查通过。');
     return;
   }
 
-  if (wantsRestartBackend || wantsRestartFrontend) {
-    await stopServices({
-      backend: wantsRestartBackend,
-      frontend: wantsRestartFrontend
+  if (wantsStop) {
+    log('正在停止服务...');
+    await runDocker(composeArgs('down'), {
+      quiet: true,
+      progressMessage: '正在停止 Docker Compose 服务'
     });
+    log('服务已停止。');
+    return;
   }
 
-  const [backendLaunch, frontendLaunch] = await Promise.all([
-    launchBackend(),
-    launchFrontend()
-  ]);
+  await guardAgainstForeignPorts();
 
-  const [, frontendUrl] = await Promise.all([
-    backendLaunch.reused ? Promise.resolve() : waitForBackendReady(),
-    frontendLaunch.reused ? Promise.resolve(frontendLaunch.url) : waitForFrontendReady()
-  ]);
+  const plan = chooseStartPlan();
+  log(`启动方式: ${plan.name}`);
+  await runDocker(plan.args, {
+    quiet: plan.quiet,
+    progressMessage: plan.progressMessage
+  });
 
-  console.log('');
+  await waitFor(backendHealthUrl, '后端服务');
+  await waitFor(frontendUrl, '前端服务');
+
   log('平台启动完成。');
-  log(`用户端：${frontendUrl}`);
-  log(`管理端：${frontendUrl}/admin`);
-  log(`后端健康检查：${backendHealthUrl}`);
-
-  if (!disableBrowser) {
-    openBrowser(frontendUrl);
-    log('已自动打开浏览器。');
-  } else {
-    log('已跳过自动打开浏览器。');
-  }
-
-  console.log('');
-  if (runInHeadlessMode) {
-    log('当前为后台运行模式，服务已在后台启动。');
-  } else {
-    log('关闭服务窗口即可停止前端或后端。');
-  }
+  printAddresses();
+  openBrowser(frontendUrl);
 }
 
 main().catch((error) => {
-  fail(error.message || '启动器执行失败。');
+  const output = error.output || error.message || '';
+  if (output) {
+    const clipped = tail(output);
+    if (clipped) {
+      warn('命令输出摘要:');
+      console.error(clipped);
+    }
+    explainFailure(output);
+  }
+  fail(error.message);
 });

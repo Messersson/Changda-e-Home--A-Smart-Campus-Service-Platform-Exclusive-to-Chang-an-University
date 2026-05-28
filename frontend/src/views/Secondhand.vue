@@ -132,7 +132,7 @@
           <el-input v-model="publishForm.description" type="textarea" :rows="5" placeholder="请输入商品描述" />
         </el-form-item>
         <el-form-item label="图片">
-          <el-input v-model="publishForm.images" type="textarea" :rows="3" placeholder="请输入图片URL，多个URL用逗号分隔" />
+          <ImageDropInput v-model="publishForm.images" multiple />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -150,6 +150,7 @@ import { Star } from '@element-plus/icons-vue'
 import { secondhandApi } from '@/api'
 import { useRouter } from 'vue-router'
 import { startPaymentByOrderId } from '@/utils/paymentFlow'
+import ImageDropInput from '@/components/ImageDropInput.vue'
 
 const items = ref([])
 const favorites = ref([])
@@ -168,7 +169,7 @@ const publishForm = ref({
   category: '',
   price: 0,
   description: '',
-  images: ''
+  images: []
 })
 
 const orderDialogVisible = ref(false)
@@ -294,11 +295,11 @@ const submitPublish = async () => {
     try {
       await secondhandApi.publishItem({
         ...publishForm.value,
-        images: publishForm.value.images.split(',').map((url) => url.trim()).filter(Boolean)
+        images: publishForm.value.images
       })
       ElMessage.success('发布成功，等待审核')
       publishDialogVisible.value = false
-      publishForm.value = { title: '', category: '', price: 0, description: '', images: '' }
+      publishForm.value = { title: '', category: '', price: 0, description: '', images: [] }
       loadItems()
     } catch (error) {
       console.error('发布失败:', error)

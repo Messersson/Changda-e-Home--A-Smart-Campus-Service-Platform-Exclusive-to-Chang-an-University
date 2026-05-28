@@ -1,9 +1,14 @@
+# syntax=docker/dockerfile:1.7
 FROM node:20-alpine AS build
 
 WORKDIR /app
 
+ARG VITE_API_BASE_URL=/api
+ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
+
 COPY package*.json ./
-RUN npm ci
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci
 
 COPY . .
 RUN npm run build

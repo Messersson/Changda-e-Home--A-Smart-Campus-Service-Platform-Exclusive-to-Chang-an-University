@@ -1,0 +1,12 @@
+campus:
+  verification:
+    expose-code: false
+
+management:
+  endpoint:
+    health:
+      show-details: never
+
+logging:
+  level:
+    cn.edu.chd.campus: INFO
