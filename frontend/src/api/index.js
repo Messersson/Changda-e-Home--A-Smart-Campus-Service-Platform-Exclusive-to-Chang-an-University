@@ -1,8 +1,14 @@
 import request from '@/utils/request'
 
+export const publicApi = {
+  getGuestAccess: () => request.get('/public/guest-access', { skipAuth: true })
+}
+
 export const authApi = {
   sendVerification: (data) => request.post('/auth/send-verification', data, { skipAuth: true }),
+  sendMerchantVerification: (data) => request.post('/auth/send-merchant-verification', data, { skipAuth: true }),
   register: (data) => request.post('/auth/register', data, { skipAuth: true }),
+  merchantRegister: (data) => request.post('/auth/merchant-register', data, { skipAuth: true }),
   login: (data) => request.post('/auth/login', data, { skipAuth: true, skipDedup: true }),
   getUserInfo: () => request.get('/auth/me'),
   updateProfile: (data) => request.put('/auth/me', data),
@@ -87,7 +93,12 @@ export const forumApi = {
 export const adminApi = {
   getStats: () => request.get('/admin/stats'),
   getUsers: (params) => request.get('/admin/users', { params }),
+  addUser: (data) => request.post('/admin/users', data),
+  updateUser: (id, data) => request.put(`/admin/users/${id}`, data),
   updateUserStatus: (id, data) => request.put(`/admin/users/${id}/status`, data),
+  deleteUser: (id) => request.delete(`/admin/users/${id}`),
+  getGuestAccess: () => request.get('/admin/settings/guest-access'),
+  updateGuestAccess: (data) => request.put('/admin/settings/guest-access', data),
   getSnacks: (params) => request.get('/admin/snacks', { params }),
   addSnack: (data) => request.post('/admin/snacks', data),
   updateSnack: (id, data) => request.put(`/admin/snacks/${id}`, data),
@@ -119,7 +130,37 @@ export const adminApi = {
   updateDrivingSchool: (id, data) => request.put(`/admin/driving-schools/${id}`, data),
   deleteDrivingSchool: (id) => request.delete(`/admin/driving-schools/${id}`),
   getDrivingInquiries: () => request.get('/admin/driving-inquiries'),
-  updateDrivingInquiryStatus: (id, data) => request.put(`/admin/driving-inquiries/${id}/status`, data)
+  updateDrivingInquiryStatus: (id, data) => request.put(`/admin/driving-inquiries/${id}/status`, data),
+  getMerchantApplications: (params) => request.get('/admin/merchant-applications', { params }),
+  approveMerchantApplication: (id, data) => request.put(`/admin/merchant-applications/${id}/approve`, data),
+  rejectMerchantApplication: (id, data) => request.put(`/admin/merchant-applications/${id}/reject`, data),
+  getMerchants: (params) => request.get('/admin/merchants', { params }),
+  updateMerchantStatus: (id, data) => request.put(`/admin/merchants/${id}/status`, data),
+  getAfterSales: (params) => request.get('/admin/after-sales', { params }),
+  decideAfterSale: (id, data) => request.put(`/admin/after-sales/${id}/decision`, data)
+}
+
+export const merchantApi = {
+  getProfile: () => request.get('/merchant/profile'),
+  getDashboard: () => request.get('/merchant/dashboard'),
+  getCategories: () => request.get('/merchant/categories'),
+  getSnacks: (params) => request.get('/merchant/snacks', { params }),
+  addSnack: (data) => request.post('/merchant/snacks', data),
+  updateSnack: (id, data) => request.put(`/merchant/snacks/${id}`, data),
+  deleteSnack: (id) => request.delete(`/merchant/snacks/${id}`),
+  getProducts: (params) => request.get('/merchant/products', { params }),
+  addProduct: (data) => request.post('/merchant/products', data),
+  updateProduct: (id, data) => request.put(`/merchant/products/${id}`, data),
+  deleteProduct: (id) => request.delete(`/merchant/products/${id}`),
+  getOrders: (params) => request.get('/merchant/orders', { params }),
+  updateOrderStatus: (id, data) => request.put(`/merchant/orders/${id}/status`, data),
+  getAfterSales: (params) => request.get('/merchant/after-sales', { params }),
+  handleAfterSale: (id, data) => request.put(`/merchant/after-sales/${id}`, data)
+}
+
+export const afterSaleApi = {
+  requestAfterSale: (orderId, data) => request.post(`/after-sales/orders/${orderId}`, data),
+  getMyAfterSales: () => request.get('/after-sales/my')
 }
 
 export const paymentApi = {

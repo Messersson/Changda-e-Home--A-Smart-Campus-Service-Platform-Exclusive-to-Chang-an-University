@@ -34,17 +34,33 @@ public class CatalogService {
   public List<Map<String, Object>> snacks(String merchant) {
     Map<String, Object> params = new LinkedHashMap<>();
     params.put("status", "active");
-    String sql = "SELECT * FROM snacks WHERE status = :status";
+    String sql = """
+        SELECT s.*, mp.store_name AS merchant_store_name, mp.contact_name AS merchant_contact_name,
+               mp.phone AS merchant_phone, mp.email AS merchant_email, mp.address AS merchant_address,
+               mp.description AS merchant_description
+        FROM snacks s
+        LEFT JOIN merchant_profiles mp ON s.merchant_id = mp.id
+        WHERE s.status = :status
+        """;
     if (merchant != null && !merchant.isBlank()) {
-      sql += " AND merchant = :merchant";
+      sql += " AND s.merchant = :merchant";
       params.put("merchant", merchant);
     }
-    sql += " ORDER BY id DESC";
+    sql += " ORDER BY s.id DESC";
     return Maps.apiList(repository.query(sql, params));
   }
 
   public Map<String, Object> snack(Long id) {
-    return Maps.api(repository.findById("snacks", id)
+    return Maps.api(repository.queryOne(
+            """
+            SELECT s.*, mp.store_name AS merchant_store_name, mp.contact_name AS merchant_contact_name,
+                   mp.phone AS merchant_phone, mp.email AS merchant_email, mp.address AS merchant_address,
+                   mp.description AS merchant_description
+            FROM snacks s
+            LEFT JOIN merchant_profiles mp ON s.merchant_id = mp.id
+            WHERE s.id = :id AND s.status = :status
+            """,
+            Map.of("id", id, "status", "active"))
         .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "菜品不存在")));
   }
 
@@ -55,23 +71,39 @@ public class CatalogService {
   public List<Map<String, Object>> supermarketProducts(Map<String, Object> query) {
     Map<String, Object> params = new LinkedHashMap<>();
     params.put("status", "active");
-    StringBuilder sql = new StringBuilder("SELECT * FROM supermarket_products WHERE status = :status");
+    StringBuilder sql = new StringBuilder("""
+        SELECT p.*, mp.store_name AS merchant_store_name, mp.contact_name AS merchant_contact_name,
+               mp.phone AS merchant_phone, mp.email AS merchant_email, mp.address AS merchant_address,
+               mp.description AS merchant_description
+        FROM supermarket_products p
+        LEFT JOIN merchant_profiles mp ON p.merchant_id = mp.id
+        WHERE p.status = :status
+        """);
     Object categoryId = query.get("categoryId");
     if (categoryId != null && !String.valueOf(categoryId).isBlank()) {
-      sql.append(" AND category_id = :categoryId");
+      sql.append(" AND p.category_id = :categoryId");
       params.put("categoryId", Maps.longValue(categoryId));
     }
     Object keyword = query.get("keyword");
     if (keyword != null && !String.valueOf(keyword).isBlank()) {
-      sql.append(" AND name LIKE :keyword");
+      sql.append(" AND p.name LIKE :keyword");
       params.put("keyword", "%" + keyword + "%");
     }
-    sql.append(" ORDER BY id DESC");
+    sql.append(" ORDER BY p.id DESC");
     return Maps.apiList(repository.query(sql.toString(), params));
   }
 
   public Map<String, Object> supermarketProduct(Long id) {
-    return Maps.api(repository.findById("supermarket_products", id)
+    return Maps.api(repository.queryOne(
+            """
+            SELECT p.*, mp.store_name AS merchant_store_name, mp.contact_name AS merchant_contact_name,
+                   mp.phone AS merchant_phone, mp.email AS merchant_email, mp.address AS merchant_address,
+                   mp.description AS merchant_description
+            FROM supermarket_products p
+            LEFT JOIN merchant_profiles mp ON p.merchant_id = mp.id
+            WHERE p.id = :id AND p.status = :status
+            """,
+            Map.of("id", id, "status", "active"))
         .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "商品不存在")));
   }
 
@@ -115,19 +147,31 @@ public class CatalogService {
   public List<Map<String, Object>> secondhandItems(Map<String, Object> query) {
     Map<String, Object> params = new LinkedHashMap<>();
     params.put("status", "active");
-    StringBuilder sql = new StringBuilder("SELECT * FROM secondhand_items WHERE status = :status");
+    StringBuilder sql = new StringBuilder("""
+        SELECT i.*, u.name AS seller_name, u.email AS seller_email
+        FROM secondhand_items i
+        LEFT JOIN users u ON i.user_id = u.id
+        WHERE i.status = :status
+        """);
     appendEquals(sql, params, "category", "category", query.get("category"));
     Object keyword = query.get("keyword");
     if (keyword != null && !String.valueOf(keyword).isBlank()) {
-      sql.append(" AND (title LIKE :keyword OR description LIKE :keyword)");
+      sql.append(" AND (i.title LIKE :keyword OR i.description LIKE :keyword)");
       params.put("keyword", "%" + keyword + "%");
     }
-    sql.append(" ORDER BY id DESC");
+    sql.append(" ORDER BY i.id DESC");
     return normalizeJsonList(repository.query(sql.toString(), params), "images");
   }
 
   public Map<String, Object> secondhandItem(Long id) {
-    return normalizeJson(repository.findById("secondhand_items", id)
+    return normalizeJson(repository.queryOne(
+            """
+            SELECT i.*, u.name AS seller_name, u.email AS seller_email
+            FROM secondhand_items i
+            LEFT JOIN users u ON i.user_id = u.id
+            WHERE i.id = :id AND i.status = :status
+            """,
+            Map.of("id", id, "status", "active"))
         .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "商品不存在")), "images");
   }
 
@@ -218,7 +262,7 @@ public class CatalogService {
   }
 
   public Map<String, Object> studyMaterial(Long id) {
-    return Maps.api(repository.findById("study_materials", id)
+    return Maps.api(repository.findOne("study_materials", Map.of("id", id, "status", "active"))
         .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "资料不存在")));
   }
 
@@ -277,7 +321,7 @@ public class CatalogService {
   }
 
   public Map<String, Object> forumPost(Long id) {
-    Map<String, Object> post = normalizeJson(repository.findById("forum_posts", id)
+    Map<String, Object> post = normalizeJson(repository.findOne("forum_posts", Map.of("id", id, "status", "active"))
         .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "帖子不存在")), "images");
     List<Map<String, Object>> comments = Maps.apiList(repository.find("forum_comments", Map.of("post_id", id), "created_at ASC"));
     post.put("comments", comments);

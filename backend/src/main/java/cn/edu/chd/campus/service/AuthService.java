@@ -25,7 +25,8 @@ import org.springframework.transaction.annotation.Transactional;
 public class AuthService {
 
   private static final Pattern STUDENT_ID_PATTERN = Pattern.compile("\\d{10}");
-  private static final Pattern EMAIL_PATTERN = Pattern.compile("^[A-Za-z0-9._%+-]+@chd\\.edu\\.cn$");
+  private static final Pattern CHD_EMAIL_PATTERN = Pattern.compile("^[A-Za-z0-9._%+-]+@chd\\.edu\\.cn$");
+  private static final Pattern EMAIL_PATTERN = Pattern.compile("^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$");
   private static final SecureRandom RANDOM = new SecureRandom();
 
   private final GenericRepository repository;
@@ -47,27 +48,20 @@ public class AuthService {
   public Map<String, Object> sendVerification(Map<String, Object> request) {
     String email = Maps.stringValue(request.get("email"), "").trim();
     String studentId = Maps.stringValue(request.get("studentId"), "").trim();
-    validateIdentity(email, studentId);
+    validateStudentIdentity(email, studentId);
     if (repository.findOne("users", Map.of("student_id", studentId)).isPresent()) {
-      throw new BusinessException("该学号已注册");
+      throw new BusinessException("This student number has already been registered");
     }
+    return createVerification(email, studentId, "The verification code has been sent to your campus email");
+  }
 
-    String code = String.valueOf(100000 + RANDOM.nextInt(900000));
-    Instant expiry = Instant.now().plusSeconds(600);
-    Map<String, Object> values = new LinkedHashMap<>();
-    values.put("email", email);
-    values.put("student_id", studentId);
-    values.put("code", code);
-    values.put("expiry_time", Timestamp.from(expiry));
-    repository.insert("email_verifications", values);
-
-    Map<String, Object> response = new LinkedHashMap<>();
-    response.put("message", "验证码已发送到校园邮箱，有效期10分钟");
-    response.put("expiryTime", expiry.toString());
-    if (exposeVerificationCode) {
-      response.put("debugCode", code);
+  public Map<String, Object> sendMerchantVerification(Map<String, Object> request) {
+    String email = Maps.stringValue(request.get("email"), "").trim();
+    validateGeneralEmail(email);
+    if (repository.findOne("users", Map.of("email", email)).isPresent()) {
+      throw new BusinessException("This email has already been registered");
     }
-    return response;
+    return createVerification(email, email, "The verification code has been sent to your email");
   }
 
   @Transactional
@@ -81,14 +75,14 @@ public class AuthService {
     String major = Maps.stringValue(request.get("major"), "").trim();
     String grade = Maps.stringValue(request.get("grade"), "").trim();
 
-    validateIdentity(email, studentId);
+    validateStudentIdentity(email, studentId);
     if (password.length() < 6 || name.isBlank() || major.isBlank() || grade.isBlank()) {
-      throw new BusinessException("参数校验失败");
+      throw new BusinessException("Invalid registration parameters");
     }
     verifyCode(email, studentId, code);
     if (repository.findOne("users", Map.of("student_id", studentId)).isPresent()
         || repository.findOne("users", Map.of("email", email)).isPresent()) {
-      throw new BusinessException("该学号或邮箱已注册");
+      throw new BusinessException("This student number or email has already been registered");
     }
 
     Map<String, Object> values = new LinkedHashMap<>();
@@ -106,19 +100,69 @@ public class AuthService {
   }
 
   @Transactional
-  @Audited(module = "auth", action = "login")
-  public Map<String, Object> login(Map<String, Object> request, String ip, String userAgent) {
-    String studentId = Maps.stringValue(request.get("studentId"), "").trim();
+  @Audited(module = "auth", action = "merchant_register")
+  public Map<String, Object> registerMerchant(Map<String, Object> request) {
+    String email = Maps.stringValue(request.get("email"), "").trim();
+    String code = Maps.stringValue(request.get("code"), "").trim();
     String password = Maps.stringValue(request.get("password"), "");
-    if (studentId.isBlank() || password.isBlank()) {
-      throw new BusinessException("学号或密码不能为空");
+    String contactName = Maps.stringValue(request.get("name"), "").trim();
+    String phone = Maps.stringValue(request.get("phone"), "").trim();
+    String storeName = Maps.stringValue(request.get("storeName"), "").trim();
+    String address = Maps.stringValue(request.get("address"), "").trim();
+    String description = Maps.stringValue(request.get("description"), "").trim();
+
+    validateGeneralEmail(email);
+    if (password.length() < 6 || contactName.isBlank() || phone.isBlank() || storeName.isBlank() || address.isBlank()) {
+      throw new BusinessException("Please complete the merchant application information");
+    }
+    verifyCode(email, email, code);
+    if (repository.findOne("users", Map.of("email", email)).isPresent()) {
+      throw new BusinessException("This email has already been registered");
     }
 
-    Optional<Map<String, Object>> optionalUser = repository.findOne("users", Map.of("student_id", studentId));
+    Map<String, Object> userValues = new LinkedHashMap<>();
+    userValues.put("student_id", email);
+    userValues.put("email", email);
+    userValues.put("password", passwordEncoder.encode(password));
+    userValues.put("name", contactName);
+    userValues.put("major", storeName);
+    userValues.put("grade", "merchant");
+    userValues.put("role", "merchant");
+    userValues.put("status", "pending");
+    Long userId = repository.insert("users", userValues);
+
+    Map<String, Object> applicationValues = new LinkedHashMap<>();
+    applicationValues.put("user_id", userId);
+    applicationValues.put("store_name", storeName);
+    applicationValues.put("contact_name", contactName);
+    applicationValues.put("phone", phone);
+    applicationValues.put("email", email);
+    applicationValues.put("address", address);
+    applicationValues.put("description", description);
+    applicationValues.put("status", "pending");
+    Long applicationId = repository.insert("merchant_applications", applicationValues);
+
+    Map<String, Object> response = new LinkedHashMap<>();
+    response.put("applicationId", applicationId);
+    response.put("status", "pending");
+    response.put("message", "Merchant application submitted and waiting for admin approval");
+    return response;
+  }
+
+  @Transactional
+  @Audited(module = "auth", action = "login")
+  public Map<String, Object> login(Map<String, Object> request, String ip, String userAgent) {
+    String account = Maps.stringValue(request.get("studentId"), "").trim();
+    String password = Maps.stringValue(request.get("password"), "");
+    if (account.isBlank() || password.isBlank()) {
+      throw new BusinessException("Account and password are required");
+    }
+
+    Optional<Map<String, Object>> optionalUser = findUserByAccount(account);
     boolean success = false;
     try {
       if (optionalUser.isEmpty()) {
-        throw new BusinessException(HttpStatus.UNAUTHORIZED, "学号或密码错误");
+        throw new BusinessException(HttpStatus.UNAUTHORIZED, "Account or password is incorrect");
       }
       Map<String, Object> user = optionalUser.get();
       String savedPassword = Maps.stringValue(user.get("password"), "");
@@ -126,10 +170,17 @@ public class AuthService {
           ? passwordEncoder.matches(password, savedPassword)
           : password.equals(savedPassword);
       if (!valid) {
-        throw new BusinessException(HttpStatus.UNAUTHORIZED, "学号或密码错误");
+        throw new BusinessException(HttpStatus.UNAUTHORIZED, "Account or password is incorrect");
       }
-      if (!"active".equalsIgnoreCase(Maps.stringValue(user.get("status"), ""))) {
-        throw new BusinessException(HttpStatus.FORBIDDEN, "账号已被禁用");
+      String status = Maps.stringValue(user.get("status"), "");
+      if ("pending".equalsIgnoreCase(status)) {
+        throw new BusinessException(HttpStatus.FORBIDDEN, "The merchant application is still pending approval");
+      }
+      if ("rejected".equalsIgnoreCase(status)) {
+        throw new BusinessException(HttpStatus.FORBIDDEN, "The merchant application has been rejected");
+      }
+      if (!"active".equalsIgnoreCase(status)) {
+        throw new BusinessException(HttpStatus.FORBIDDEN, "This account has been disabled");
       }
       if (!savedPassword.startsWith("$2")) {
         repository.updateById("users", Maps.longValue(user.get("id")), Map.of("password", passwordEncoder.encode(password)));
@@ -137,13 +188,13 @@ public class AuthService {
       success = true;
       return tokenPayload(repository.findById("users", Maps.longValue(user.get("id"))).orElse(user));
     } finally {
-      recordLoginAttempt(studentId, ip, userAgent, success);
+      recordLoginAttempt(account, ip, userAgent, success);
     }
   }
 
   public Map<String, Object> currentUser(Long id) {
     return serializeUser(repository.findById("users", id)
-        .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "用户不存在")));
+        .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "User not found")));
   }
 
   @Audited(module = "auth", action = "update_profile")
@@ -153,7 +204,7 @@ public class AuthService {
     values.put("major", Maps.stringValue(request.get("major"), "").trim());
     values.put("grade", Maps.stringValue(request.get("grade"), "").trim());
     if (values.values().stream().anyMatch(value -> String.valueOf(value).isBlank())) {
-      throw new BusinessException("姓名、专业和年级不能为空");
+      throw new BusinessException("Name, major and grade are required");
     }
     repository.updateById("users", id, values);
     return currentUser(id);
@@ -164,31 +215,64 @@ public class AuthService {
     String currentPassword = Maps.stringValue(request.get("currentPassword"), "");
     String newPassword = Maps.stringValue(request.get("newPassword"), "");
     if (newPassword.length() < 6) {
-      throw new BusinessException("新密码至少6位");
+      throw new BusinessException("New password must be at least 6 characters");
     }
     Map<String, Object> user = repository.findById("users", id)
-        .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "用户不存在"));
+        .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "User not found"));
     String savedPassword = Maps.stringValue(user.get("password"), "");
     boolean valid = savedPassword.startsWith("$2")
         ? passwordEncoder.matches(currentPassword, savedPassword)
         : currentPassword.equals(savedPassword);
     if (!valid) {
-      throw new BusinessException("当前密码不正确");
+      throw new BusinessException("Current password is incorrect");
     }
     repository.updateById("users", id, Map.of("password", passwordEncoder.encode(newPassword)));
   }
 
-  private void validateIdentity(String email, String studentId) {
-    if (!STUDENT_ID_PATTERN.matcher(studentId).matches()) {
-      throw new BusinessException("学号格式不正确，应为10位数字");
+  private Map<String, Object> createVerification(String email, String identity, String message) {
+    String code = String.valueOf(100000 + RANDOM.nextInt(900000));
+    Instant expiry = Instant.now().plusSeconds(600);
+    Map<String, Object> values = new LinkedHashMap<>();
+    values.put("email", email);
+    values.put("student_id", identity);
+    values.put("code", code);
+    values.put("expiry_time", Timestamp.from(expiry));
+    repository.insert("email_verifications", values);
+
+    Map<String, Object> response = new LinkedHashMap<>();
+    response.put("message", message);
+    response.put("expiryTime", expiry.toString());
+    if (exposeVerificationCode) {
+      response.put("debugCode", code);
     }
-    if (!EMAIL_PATTERN.matcher(email).matches()) {
-      throw new BusinessException("邮箱必须为长安大学邮箱（@chd.edu.cn）");
+    return response;
+  }
+
+  private Optional<Map<String, Object>> findUserByAccount(String account) {
+    Optional<Map<String, Object>> byAccount = repository.findOne("users", Map.of("student_id", account));
+    if (byAccount.isPresent()) {
+      return byAccount;
+    }
+    return repository.findOne("users", Map.of("email", account));
+  }
+
+  private void validateStudentIdentity(String email, String studentId) {
+    if (!STUDENT_ID_PATTERN.matcher(studentId).matches()) {
+      throw new BusinessException("Student number must be 10 digits");
+    }
+    if (!CHD_EMAIL_PATTERN.matcher(email).matches()) {
+      throw new BusinessException("Student email must use @chd.edu.cn");
     }
   }
 
-  private void verifyCode(String email, String studentId, String code) {
-    Map<String, Object> params = Map.of("email", email, "studentId", studentId, "code", code);
+  private void validateGeneralEmail(String email) {
+    if (!EMAIL_PATTERN.matcher(email).matches()) {
+      throw new BusinessException("Please enter a valid email address");
+    }
+  }
+
+  private void verifyCode(String email, String identity, String code) {
+    Map<String, Object> params = Map.of("email", email, "studentId", identity, "code", code);
     Optional<Map<String, Object>> optionalVerification = repository.queryOne(
         """
         SELECT * FROM email_verifications
@@ -198,12 +282,12 @@ public class AuthService {
         """,
         params);
     if (optionalVerification.isEmpty()) {
-      throw new BusinessException("验证码错误或已过期");
+      throw new BusinessException("Verification code is invalid or expired");
     }
     Map<String, Object> verification = optionalVerification.get();
     Instant expiry = toInstant(verification.get("expiry_time"));
     if (expiry.isBefore(Instant.now())) {
-      throw new BusinessException("验证码已过期");
+      throw new BusinessException("Verification code has expired");
     }
     repository.updateById("email_verifications", Maps.longValue(verification.get("id")), Map.of("used_at", Timestamp.from(Instant.now())));
   }
@@ -218,7 +302,7 @@ public class AuthService {
     if (value instanceof java.util.Date date) {
       return date.toInstant();
     }
-    throw new BusinessException("楠岃瘉鐮佹椂闂存牸寮忓紓甯?");
+    throw new BusinessException("Invalid verification expiry time");
   }
 
   private Map<String, Object> tokenPayload(Map<String, Object> user) {
@@ -244,12 +328,16 @@ public class AuthService {
     result.put("role", user.get("role"));
     result.put("status", user.get("status"));
     result.put("createdAt", Maps.convert(user.get("created_at")));
+    if ("merchant".equalsIgnoreCase(Maps.stringValue(user.get("role"), ""))) {
+      repository.findOne("merchant_profiles", Map.of("user_id", Maps.longValue(user.get("id"))))
+          .ifPresent(profile -> result.put("merchantProfile", Maps.api(profile)));
+    }
     return result;
   }
 
-  private void recordLoginAttempt(String studentId, String ip, String userAgent, boolean success) {
+  private void recordLoginAttempt(String account, String ip, String userAgent, boolean success) {
     Map<String, Object> values = new LinkedHashMap<>();
-    values.put("student_id", studentId);
+    values.put("student_id", account);
     values.put("ip_address", ip);
     values.put("user_agent", userAgent == null ? "" : userAgent.substring(0, Math.min(userAgent.length(), 255)));
     values.put("success", success ? 1 : 0);

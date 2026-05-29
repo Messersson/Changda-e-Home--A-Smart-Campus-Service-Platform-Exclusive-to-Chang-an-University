@@ -1,614 +1,816 @@
 /*
- Navicat Premium Dump SQL
-
- Source Server         : 长安大学服务平台数据库
- Source Server Type    : MySQL
- Source Server Version : 90001 (9.0.1)
- Source Host           : localhost:3306
- Source Schema         : changan_campus_service
-
- Target Server Type    : MySQL
- Target Server Version : 90001 (9.0.1)
- File Encoding         : 65001
-
- Date: 23/03/2026 21:39:38
+ Current database initialization SQL for 长安大学校园服务平台
+ Synchronized from backend/src/main/resources/db/migration V1-V6.
 */
+
+CREATE DATABASE IF NOT EXISTS `changan_campus_service` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE `changan_campus_service`;
 
 SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
 
 -- ----------------------------
--- Table structure for audit_record
+-- V1__init_campus_schema.sql
 -- ----------------------------
-DROP TABLE IF EXISTS `audit_record`;
-CREATE TABLE `audit_record`  (
-  `id` int UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '审核记录ID，自增主键',
-  `module_type` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '审核模块类型：tutoring-家教，secondhand-二手商品，study_material-学习资料',
-  `record_id` int UNSIGNED NOT NULL COMMENT '被审核记录ID，关联对应模块表的主键ID',
-  `old_status` tinyint NOT NULL COMMENT '原审核状态',
-  `new_status` tinyint NOT NULL COMMENT '新审核状态',
-  `auditor_id` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '审核人学号，必须为admin角色，关联user.student_id',
-  `reason` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '审核理由，如拒绝原因、通过备注',
-  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '审核时间',
-  `ext1` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL,
-  `ext2` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL,
-  `remark` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL,
-  PRIMARY KEY (`id`) USING BTREE,
-  INDEX `idx_module_record`(`module_type` ASC, `record_id` ASC) USING BTREE,
-  INDEX `idx_auditor_id`(`auditor_id` ASC) USING BTREE,
-  INDEX `idx_create_time`(`create_time` ASC) USING BTREE,
-  CONSTRAINT `audit_record_ibfk_1` FOREIGN KEY (`auditor_id`) REFERENCES `user` (`student_id`) ON DELETE RESTRICT ON UPDATE RESTRICT
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '后台审核操作记录表，所有审核行为可追溯' ROW_FORMAT = Dynamic;
+CREATE TABLE IF NOT EXISTS users (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  student_id VARCHAR(20) UNIQUE NOT NULL COMMENT 'student number',
+  email VARCHAR(100) UNIQUE NOT NULL,
+  password VARCHAR(255) NOT NULL,
+  name VARCHAR(50) NOT NULL,
+  major VARCHAR(100) NOT NULL,
+  grade VARCHAR(20) NOT NULL,
+  role VARCHAR(20) DEFAULT 'student',
+  status VARCHAR(20) DEFAULT 'active',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_users_student_id (student_id),
+  INDEX idx_users_email (email),
+  INDEX idx_users_role (role),
+  INDEX idx_users_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS email_verifications (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  email VARCHAR(100) NOT NULL,
+  student_id VARCHAR(20) NOT NULL,
+  code VARCHAR(10) NOT NULL,
+  expiry_time DATETIME NOT NULL,
+  used_at DATETIME NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_email_verifications_lookup (email, student_id, code),
+  INDEX idx_email_verifications_expiry (expiry_time)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS snacks (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  name VARCHAR(100) NOT NULL,
+  price DECIMAL(10,2) NOT NULL,
+  description TEXT,
+  image VARCHAR(255),
+  merchant VARCHAR(100) NOT NULL,
+  status VARCHAR(20) DEFAULT 'active',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_snacks_status (status),
+  INDEX idx_snacks_merchant (merchant)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS supermarket_categories (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  name VARCHAR(50) NOT NULL,
+  icon VARCHAR(40) NOT NULL,
+  parent_id BIGINT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_supermarket_categories_parent (parent_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS supermarket_products (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  name VARCHAR(100) NOT NULL,
+  category_id BIGINT NOT NULL,
+  price DECIMAL(10,2) NOT NULL,
+  spec VARCHAR(50) NOT NULL,
+  stock INT DEFAULT 0,
+  image VARCHAR(255),
+  description TEXT,
+  status VARCHAR(20) DEFAULT 'active',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_supermarket_products_category (category_id),
+  INDEX idx_supermarket_products_status (status),
+  CONSTRAINT fk_supermarket_products_category FOREIGN KEY (category_id) REFERENCES supermarket_categories(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS cart_items (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  user_id BIGINT NOT NULL,
+  product_id BIGINT NOT NULL,
+  quantity INT DEFAULT 1,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_cart_user_product (user_id, product_id),
+  INDEX idx_cart_items_user (user_id),
+  CONSTRAINT fk_cart_items_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_cart_items_product FOREIGN KEY (product_id) REFERENCES supermarket_products(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS orders (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  order_no VARCHAR(40) UNIQUE NULL,
+  idempotency_key VARCHAR(80) UNIQUE NULL,
+  user_id BIGINT NOT NULL,
+  type VARCHAR(30) NOT NULL,
+  items JSON NOT NULL,
+  total_amount DECIMAL(10,2) NOT NULL,
+  address VARCHAR(255),
+  phone VARCHAR(30),
+  remark TEXT,
+  status VARCHAR(20) DEFAULT 'pending',
+  payment_status VARCHAR(20) DEFAULT 'unpaid',
+  cancel_reason VARCHAR(255) NULL,
+  paid_at DATETIME NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_orders_user (user_id),
+  INDEX idx_orders_type (type),
+  INDEX idx_orders_status (status),
+  INDEX idx_orders_payment_status (payment_status),
+  CONSTRAINT fk_orders_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS payments (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  order_id BIGINT NOT NULL,
+  user_id BIGINT NOT NULL,
+  provider VARCHAR(20) NOT NULL,
+  out_trade_no VARCHAR(80) NOT NULL,
+  amount DECIMAL(10,2) NOT NULL,
+  status VARCHAR(20) DEFAULT 'created',
+  pay_url VARCHAR(512),
+  notify_payload TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  paid_at DATETIME NULL,
+  UNIQUE KEY uk_payments_out_trade_no (out_trade_no),
+  INDEX idx_payments_order (order_id),
+  INDEX idx_payments_user (user_id),
+  INDEX idx_payments_status (status),
+  CONSTRAINT fk_payments_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+  CONSTRAINT fk_payments_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS refunds (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  payment_id BIGINT NOT NULL,
+  order_id BIGINT NOT NULL,
+  user_id BIGINT NOT NULL,
+  provider VARCHAR(20) NOT NULL,
+  out_refund_no VARCHAR(80) NOT NULL,
+  refund_no VARCHAR(128),
+  amount DECIMAL(10,2) NOT NULL,
+  reason VARCHAR(255),
+  status VARCHAR(20) DEFAULT 'created',
+  raw_response TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  refunded_at DATETIME NULL,
+  UNIQUE KEY uk_refunds_out_refund_no (out_refund_no),
+  INDEX idx_refunds_payment (payment_id),
+  INDEX idx_refunds_order (order_id),
+  INDEX idx_refunds_user (user_id),
+  CONSTRAINT fk_refunds_payment FOREIGN KEY (payment_id) REFERENCES payments(id) ON DELETE CASCADE,
+  CONSTRAINT fk_refunds_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+  CONSTRAINT fk_refunds_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS tutors (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  user_id BIGINT NOT NULL,
+  name VARCHAR(50) NOT NULL,
+  subject VARCHAR(50) NOT NULL,
+  grade VARCHAR(20) NOT NULL,
+  salary INT NOT NULL,
+  description TEXT,
+  contact VARCHAR(80) NOT NULL,
+  status VARCHAR(20) DEFAULT 'pending',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_tutors_user (user_id),
+  INDEX idx_tutors_status (status),
+  CONSTRAINT fk_tutors_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS secondhand_items (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  user_id BIGINT NOT NULL,
+  title VARCHAR(100) NOT NULL,
+  category VARCHAR(50) NOT NULL,
+  price DECIMAL(10,2) NOT NULL,
+  description TEXT,
+  images JSON NULL,
+  status VARCHAR(20) DEFAULT 'pending',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_secondhand_user (user_id),
+  INDEX idx_secondhand_status (status),
+  CONSTRAINT fk_secondhand_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS user_favorites (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  user_id BIGINT NOT NULL,
+  type VARCHAR(20) NOT NULL,
+  item_id BIGINT NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_user_favorites_item (user_id, type, item_id),
+  INDEX idx_user_favorites_user (user_id),
+  CONSTRAINT fk_user_favorites_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS driving_schools (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  name VARCHAR(100) NOT NULL,
+  address VARCHAR(255) NOT NULL,
+  phone VARCHAR(30) NOT NULL,
+  price INT NOT NULL,
+  description TEXT,
+  features JSON NULL,
+  status VARCHAR(20) DEFAULT 'active',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_driving_schools_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS driving_inquiries (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  user_id BIGINT NOT NULL,
+  school_id BIGINT NOT NULL,
+  name VARCHAR(50),
+  phone VARCHAR(30),
+  question TEXT,
+  status VARCHAR(20) DEFAULT 'pending',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_driving_inquiries_user (user_id),
+  INDEX idx_driving_inquiries_school (school_id),
+  INDEX idx_driving_inquiries_status (status),
+  CONSTRAINT fk_driving_inquiries_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_driving_inquiries_school FOREIGN KEY (school_id) REFERENCES driving_schools(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS study_materials (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  title VARCHAR(100) NOT NULL,
+  major VARCHAR(100) NOT NULL,
+  grade VARCHAR(20) NOT NULL,
+  subject VARCHAR(50) NOT NULL,
+  type VARCHAR(20) NOT NULL,
+  size VARCHAR(20) NOT NULL,
+  download_count INT DEFAULT 0,
+  uploader_id BIGINT NOT NULL,
+  uploader_name VARCHAR(50) NOT NULL,
+  description TEXT,
+  status VARCHAR(20) DEFAULT 'pending',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_study_materials_uploader (uploader_id),
+  INDEX idx_study_materials_status (status),
+  CONSTRAINT fk_study_materials_uploader FOREIGN KEY (uploader_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS forum_posts (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  user_id BIGINT NOT NULL,
+  user_name VARCHAR(50) NOT NULL,
+  title VARCHAR(200) NOT NULL,
+  content TEXT NOT NULL,
+  category VARCHAR(30) NOT NULL,
+  images JSON NULL,
+  likes INT DEFAULT 0,
+  status VARCHAR(20) DEFAULT 'pending',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_forum_posts_user (user_id),
+  INDEX idx_forum_posts_category (category),
+  INDEX idx_forum_posts_status (status),
+  CONSTRAINT fk_forum_posts_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS forum_comments (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  post_id BIGINT NOT NULL,
+  user_id BIGINT NOT NULL,
+  user_name VARCHAR(50) NOT NULL,
+  content TEXT NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_forum_comments_post (post_id),
+  INDEX idx_forum_comments_user (user_id),
+  CONSTRAINT fk_forum_comments_post FOREIGN KEY (post_id) REFERENCES forum_posts(id) ON DELETE CASCADE,
+  CONSTRAINT fk_forum_comments_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS login_attempts (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  student_id VARCHAR(20) NOT NULL,
+  ip_address VARCHAR(64) NULL,
+  user_agent VARCHAR(255) NULL,
+  success TINYINT(1) NOT NULL DEFAULT 0,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_login_attempts_student (student_id),
+  INDEX idx_login_attempts_created_at (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS stock_movements (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  product_id BIGINT NOT NULL,
+  order_id BIGINT NULL,
+  movement_type VARCHAR(32) NOT NULL,
+  quantity INT NOT NULL,
+  stock_before INT NOT NULL,
+  stock_after INT NOT NULL,
+  operator_type VARCHAR(32) NOT NULL DEFAULT 'system',
+  operator_id BIGINT NULL,
+  remark VARCHAR(255) NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_stock_movements_product (product_id),
+  INDEX idx_stock_movements_order (order_id),
+  CONSTRAINT fk_stock_movements_product FOREIGN KEY (product_id) REFERENCES supermarket_products(id) ON DELETE CASCADE,
+  CONSTRAINT fk_stock_movements_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS order_status_logs (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  order_id BIGINT NOT NULL,
+  from_status VARCHAR(32) NULL,
+  to_status VARCHAR(32) NOT NULL,
+  operator_type VARCHAR(32) NOT NULL DEFAULT 'system',
+  operator_id BIGINT NULL,
+  remark VARCHAR(255) NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_order_status_logs_order (order_id),
+  CONSTRAINT fk_order_status_logs_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS audit_logs (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  module VARCHAR(64) NOT NULL,
+  action VARCHAR(64) NOT NULL,
+  operator_type VARCHAR(32) NOT NULL DEFAULT 'system',
+  operator_id BIGINT NULL,
+  target_type VARCHAR(64) NULL,
+  target_id VARCHAR(64) NULL,
+  details JSON NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_audit_logs_module (module),
+  INDEX idx_audit_logs_action (action),
+  INDEX idx_audit_logs_created_at (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT IGNORE INTO users (id, student_id, email, password, name, major, grade, role, status) VALUES
+  (1, '2024000000', 'admin@chd.edu.cn', 'admin123', '管理员', '系统管理', '2024', 'admin', 'active'),
+  (2, '2022000001', 'student@chd.edu.cn', '123456', '测试学生', '软件工程', '2022', 'student', 'active');
+
+INSERT IGNORE INTO supermarket_categories (id, name, icon, parent_id) VALUES
+  (1, '零食', 'snack', NULL),
+  (2, '水果', 'fruit', NULL),
+  (3, '饮料', 'drink', NULL),
+  (4, '膨化食品', 'chips', 1),
+  (5, '糖果巧克力', 'candy', 1),
+  (6, '坚果蜜饯', 'nut', 1),
+  (7, '时令水果', 'apple', 2),
+  (8, '果汁饮料', 'juice', 3),
+  (9, '碳酸饮料', 'soda', 3),
+  (10, '茶饮咖啡', 'tea', 3);
+
+INSERT IGNORE INTO supermarket_products (id, name, category_id, price, spec, stock, image, description, status) VALUES
+  (1, '乐事薯片原味', 4, 8.50, '70g', 50, '/uploads/supermarket1.jpg', '经典原味薯片', 'active'),
+  (2, '奥利奥饼干', 4, 12.00, '133g', 35, '/uploads/supermarket2.jpg', '经典夹心饼干', 'active'),
+  (3, '德芙巧克力', 5, 15.00, '80g', 28, '/uploads/supermarket3.jpg', '丝滑牛奶巧克力', 'active'),
+  (4, '苹果', 7, 5.50, '500g', 60, '/uploads/supermarket6.jpg', '新鲜红富士苹果', 'active'),
+  (5, '香蕉', 7, 4.00, '500g', 45, '/uploads/supermarket7.jpg', '新鲜香蕉', 'active'),
+  (6, '可口可乐', 9, 3.00, '330ml', 100, '/uploads/supermarket10.jpg', '经典可乐', 'active'),
+  (7, '农夫山泉', 8, 2.00, '550ml', 120, '/uploads/supermarket13.jpg', '天然饮用水', 'active');
+
+INSERT IGNORE INTO snacks (id, name, price, description, image, merchant, status) VALUES
+  (1, '肉夹馍', 8.00, '陕西特色肉夹馍', '/uploads/snack1.jpg', '东门老王小吃', 'active'),
+  (2, '凉皮', 6.00, '酸辣爽口凉皮', '/uploads/snack2.jpg', '东门老王小吃', 'active'),
+  (3, '煎饼果子', 7.00, '现做煎饼，加蛋加脆', '/uploads/snack3.jpg', '东门煎饼摊', 'active'),
+  (4, '烤冷面', 8.00, '东北特色烤冷面', '/uploads/snack4.jpg', '东门烤冷面', 'active'),
+  (5, '炸串', 2.00, '蔬菜肉类按串计价', '/uploads/snack5.jpg', '东门炸串摊', 'active');
+
+INSERT IGNORE INTO driving_schools (id, name, address, phone, price, description, features, status) VALUES
+  (1, '长安驾校', '长安大学北门对面', '029-88888888', 2800, '校内合作驾校，通过率高', JSON_ARRAY('包过班', '周末练车', '校内接送'), 'active'),
+  (2, '平安驾校', '长安大学南门500米', '029-66666666', 2600, '老牌驾校，教练经验丰富', JSON_ARRAY('一对一教学', '练车时间灵活'), 'active');
+
+INSERT IGNORE INTO tutors (id, user_id, name, subject, grade, salary, description, contact, status) VALUES
+  (1, 2, '测试学生', '高等数学', '大一', 60, '擅长高数基础辅导和考前复习', 'student@chd.edu.cn', 'active');
+
+INSERT IGNORE INTO secondhand_items (id, user_id, title, category, price, description, images, status) VALUES
+  (1, 2, '九成新计算器', '学习用品', 35.00, '考试可用，功能完好', JSON_ARRAY('/uploads/secondhand1.jpg'), 'active');
+
+INSERT IGNORE INTO study_materials (id, title, major, grade, subject, type, size, download_count, uploader_id, uploader_name, description, status) VALUES
+  (1, 'Java Web 复习资料', '软件工程', '2022', 'Java', 'pdf', '3MB', 12, 2, '测试学生', 'Spring Boot 和 Web 基础复习资料', 'active');
+
+INSERT IGNORE INTO forum_posts (id, user_id, user_name, title, content, category, images, likes, status) VALUES
+  (1, 2, '测试学生', '校园服务平台上线啦', '欢迎大家体验并反馈问题。', 'life', JSON_ARRAY(), 3, 'active');
 
 -- ----------------------------
--- Records of audit_record
+-- V2__ensure_legacy_schema_compatibility.sql
 -- ----------------------------
+CREATE TABLE IF NOT EXISTS payments (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  order_id INT NOT NULL,
+  user_id INT NOT NULL,
+  provider VARCHAR(20) NOT NULL,
+  out_trade_no VARCHAR(80) NOT NULL,
+  amount DECIMAL(10,2) NOT NULL,
+  status VARCHAR(20) DEFAULT 'created',
+  pay_url VARCHAR(512),
+  notify_payload TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  paid_at DATETIME NULL,
+  UNIQUE KEY uk_payments_out_trade_no (out_trade_no),
+  INDEX idx_payments_order (order_id),
+  INDEX idx_payments_user (user_id),
+  INDEX idx_payments_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS refunds (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  payment_id BIGINT NOT NULL,
+  order_id INT NOT NULL,
+  user_id INT NOT NULL,
+  provider VARCHAR(20) NOT NULL,
+  out_refund_no VARCHAR(80) NOT NULL,
+  refund_no VARCHAR(128),
+  amount DECIMAL(10,2) NOT NULL,
+  reason VARCHAR(255),
+  status VARCHAR(20) DEFAULT 'created',
+  raw_response TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  refunded_at DATETIME NULL,
+  UNIQUE KEY uk_refunds_out_refund_no (out_refund_no),
+  INDEX idx_refunds_payment (payment_id),
+  INDEX idx_refunds_order (order_id),
+  INDEX idx_refunds_user (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS stock_movements (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  product_id INT NOT NULL,
+  order_id INT NULL,
+  movement_type VARCHAR(32) NOT NULL,
+  quantity INT NOT NULL,
+  stock_before INT NOT NULL,
+  stock_after INT NOT NULL,
+  operator_type VARCHAR(32) NOT NULL DEFAULT 'system',
+  operator_id INT NULL,
+  remark VARCHAR(255) NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_stock_movements_product (product_id),
+  INDEX idx_stock_movements_order (order_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS order_status_logs (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  order_id INT NOT NULL,
+  from_status VARCHAR(32) NULL,
+  to_status VARCHAR(32) NOT NULL,
+  operator_type VARCHAR(32) NOT NULL DEFAULT 'system',
+  operator_id INT NULL,
+  remark VARCHAR(255) NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_order_status_logs_order (order_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS audit_logs (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  module VARCHAR(64) NOT NULL,
+  action VARCHAR(64) NOT NULL,
+  operator_type VARCHAR(32) NOT NULL DEFAULT 'system',
+  operator_id INT NULL,
+  target_type VARCHAR(64) NULL,
+  target_id VARCHAR(64) NULL,
+  details JSON NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_audit_logs_module (module),
+  INDEX idx_audit_logs_action (action),
+  INDEX idx_audit_logs_created_at (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS login_attempts (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  student_id VARCHAR(20) NOT NULL,
+  ip_address VARCHAR(64) NULL,
+  user_agent VARCHAR(255) NULL,
+  success TINYINT(1) NOT NULL DEFAULT 0,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_login_attempts_student (student_id),
+  INDEX idx_login_attempts_created_at (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+SET @schema_name = DATABASE();
+
+SET @column_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'users' AND COLUMN_NAME = 'updated_at');
+SET @sql = IF(@column_exists = 0, 'ALTER TABLE users ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP', 'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @column_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'orders' AND COLUMN_NAME = 'order_no');
+SET @sql = IF(@column_exists = 0, 'ALTER TABLE orders ADD COLUMN order_no VARCHAR(40) NULL', 'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @column_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'orders' AND COLUMN_NAME = 'idempotency_key');
+SET @sql = IF(@column_exists = 0, 'ALTER TABLE orders ADD COLUMN idempotency_key VARCHAR(80) NULL', 'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @column_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'orders' AND COLUMN_NAME = 'payment_status');
+SET @sql = IF(@column_exists = 0, 'ALTER TABLE orders ADD COLUMN payment_status VARCHAR(20) DEFAULT ''unpaid''', 'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @column_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'orders' AND COLUMN_NAME = 'cancel_reason');
+SET @sql = IF(@column_exists = 0, 'ALTER TABLE orders ADD COLUMN cancel_reason VARCHAR(255) NULL', 'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @column_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'orders' AND COLUMN_NAME = 'paid_at');
+SET @sql = IF(@column_exists = 0, 'ALTER TABLE orders ADD COLUMN paid_at DATETIME NULL', 'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @column_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'orders' AND COLUMN_NAME = 'updated_at');
+SET @sql = IF(@column_exists = 0, 'ALTER TABLE orders ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP', 'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @column_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'snacks' AND COLUMN_NAME = 'updated_at');
+SET @sql = IF(@column_exists = 0, 'ALTER TABLE snacks ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP', 'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @column_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'supermarket_categories' AND COLUMN_NAME = 'updated_at');
+SET @sql = IF(@column_exists = 0, 'ALTER TABLE supermarket_categories ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP', 'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @column_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'supermarket_products' AND COLUMN_NAME = 'updated_at');
+SET @sql = IF(@column_exists = 0, 'ALTER TABLE supermarket_products ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP', 'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @column_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'tutors' AND COLUMN_NAME = 'updated_at');
+SET @sql = IF(@column_exists = 0, 'ALTER TABLE tutors ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP', 'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @column_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'secondhand_items' AND COLUMN_NAME = 'updated_at');
+SET @sql = IF(@column_exists = 0, 'ALTER TABLE secondhand_items ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP', 'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @column_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'driving_schools' AND COLUMN_NAME = 'updated_at');
+SET @sql = IF(@column_exists = 0, 'ALTER TABLE driving_schools ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP', 'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @column_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'driving_inquiries' AND COLUMN_NAME = 'updated_at');
+SET @sql = IF(@column_exists = 0, 'ALTER TABLE driving_inquiries ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP', 'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @column_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'study_materials' AND COLUMN_NAME = 'updated_at');
+SET @sql = IF(@column_exists = 0, 'ALTER TABLE study_materials ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP', 'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @column_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'forum_posts' AND COLUMN_NAME = 'updated_at');
+SET @sql = IF(@column_exists = 0, 'ALTER TABLE forum_posts ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP', 'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 -- ----------------------------
--- Table structure for driving_school
+-- V3__allow_embedded_image_data_urls.sql
 -- ----------------------------
-DROP TABLE IF EXISTS `driving_school`;
-CREATE TABLE `driving_school`  (
-  `id` int UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '驾校ID，自增主键',
-  `name` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '驾校名称，如长安驾校、鹏程驾校',
-  `logo_url` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '驾校Logo URL',
-  `description` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '驾校简介，如训练场地、拿证时间、收费标准',
-  `registration_link` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '报名链接，支持校内专属报名入口',
-  `contact_info` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '咨询联系方式，如驾校老师手机号、微信',
-  `is_active` tinyint(1) NOT NULL DEFAULT 1 COMMENT '是否有效：0-无效（下架），1-有效（上架）',
-  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  `ext1` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL,
-  `ext2` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL,
-  `remark` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL,
-  PRIMARY KEY (`id`) USING BTREE,
-  INDEX `idx_is_active`(`is_active` ASC) USING BTREE
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '驾校信息表，后台管理可增删改查' ROW_FORMAT = Dynamic;
+ALTER TABLE snacks MODIFY COLUMN image MEDIUMTEXT NULL;
+
+ALTER TABLE supermarket_products MODIFY COLUMN image MEDIUMTEXT NULL;
 
 -- ----------------------------
--- Records of driving_school
+-- V4__merchant_management.sql
 -- ----------------------------
+SET @schema_name = DATABASE();
+
+ALTER TABLE users MODIFY COLUMN student_id VARCHAR(100) NOT NULL COMMENT 'login account or student number';
+ALTER TABLE email_verifications MODIFY COLUMN student_id VARCHAR(100) NOT NULL;
+ALTER TABLE login_attempts MODIFY COLUMN student_id VARCHAR(100) NOT NULL;
+
+CREATE TABLE IF NOT EXISTS merchant_applications (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  user_id BIGINT NOT NULL,
+  store_name VARCHAR(100) NOT NULL,
+  contact_name VARCHAR(50) NOT NULL,
+  phone VARCHAR(30) NOT NULL,
+  email VARCHAR(100) NOT NULL,
+  address VARCHAR(255) NOT NULL,
+  description TEXT NULL,
+  status VARCHAR(20) DEFAULT 'pending',
+  audit_remark VARCHAR(255) NULL,
+  auditor_id BIGINT NULL,
+  audited_at DATETIME NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_merchant_applications_user (user_id),
+  INDEX idx_merchant_applications_status (status),
+  INDEX idx_merchant_applications_email (email),
+  CONSTRAINT fk_merchant_applications_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS merchant_profiles (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  user_id BIGINT NOT NULL,
+  application_id BIGINT NULL,
+  store_name VARCHAR(100) NOT NULL,
+  contact_name VARCHAR(50) NOT NULL,
+  phone VARCHAR(30) NOT NULL,
+  email VARCHAR(100) NOT NULL,
+  address VARCHAR(255) NOT NULL,
+  description TEXT NULL,
+  status VARCHAR(20) DEFAULT 'active',
+  approved_at DATETIME NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_merchant_profiles_user (user_id),
+  INDEX idx_merchant_profiles_status (status),
+  INDEX idx_merchant_profiles_store (store_name),
+  CONSTRAINT fk_merchant_profiles_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS order_after_sales (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  order_id BIGINT NOT NULL,
+  user_id BIGINT NOT NULL,
+  merchant_id BIGINT NOT NULL,
+  type VARCHAR(20) NOT NULL,
+  reason VARCHAR(255) NOT NULL,
+  amount DECIMAL(10,2) NULL,
+  status VARCHAR(30) DEFAULT 'pending',
+  merchant_reply VARCHAR(255) NULL,
+  merchant_handled_at DATETIME NULL,
+  admin_reply VARCHAR(255) NULL,
+  admin_handled_at DATETIME NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_order_after_sales_order (order_id),
+  INDEX idx_order_after_sales_user (user_id),
+  INDEX idx_order_after_sales_merchant (merchant_id),
+  INDEX idx_order_after_sales_status (status),
+  CONSTRAINT fk_order_after_sales_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+  CONSTRAINT fk_order_after_sales_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_order_after_sales_merchant FOREIGN KEY (merchant_id) REFERENCES merchant_profiles(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+SET @column_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'snacks' AND COLUMN_NAME = 'merchant_id');
+SET @sql = IF(@column_exists = 0, 'ALTER TABLE snacks ADD COLUMN merchant_id BIGINT NULL', 'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @column_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'supermarket_products' AND COLUMN_NAME = 'merchant_id');
+SET @sql = IF(@column_exists = 0, 'ALTER TABLE supermarket_products ADD COLUMN merchant_id BIGINT NULL', 'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @column_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'orders' AND COLUMN_NAME = 'merchant_id');
+SET @sql = IF(@column_exists = 0, 'ALTER TABLE orders ADD COLUMN merchant_id BIGINT NULL', 'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @index_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'snacks' AND INDEX_NAME = 'idx_snacks_merchant_id');
+SET @sql = IF(@index_exists = 0, 'ALTER TABLE snacks ADD INDEX idx_snacks_merchant_id (merchant_id)', 'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @index_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'supermarket_products' AND INDEX_NAME = 'idx_supermarket_products_merchant_id');
+SET @sql = IF(@index_exists = 0, 'ALTER TABLE supermarket_products ADD INDEX idx_supermarket_products_merchant_id (merchant_id)', 'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @index_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'orders' AND INDEX_NAME = 'idx_orders_merchant_id');
+SET @sql = IF(@index_exists = 0, 'ALTER TABLE orders ADD INDEX idx_orders_merchant_id (merchant_id)', 'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 -- ----------------------------
--- Table structure for forum_board
+-- V5__guest_access_and_user_management.sql
 -- ----------------------------
-DROP TABLE IF EXISTS `forum_board`;
-CREATE TABLE `forum_board`  (
-  `id` int UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '板块ID，自增主键',
-  `name` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '板块名称，如学习交流、校园生活、闲置交易、驾校咨询',
-  `description` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '板块描述，如分享学习心得、交流校园日常',
-  `sort_order` int NOT NULL DEFAULT 0 COMMENT '排序序号，数字越小越靠前',
-  `is_active` tinyint(1) NOT NULL DEFAULT 1 COMMENT '是否启用：0-禁用，1-启用',
-  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  `ext1` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL,
-  `ext2` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL,
-  `remark` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL,
-  PRIMARY KEY (`id`) USING BTREE,
-  INDEX `idx_is_active`(`is_active` ASC) USING BTREE
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '校园论坛板块表' ROW_FORMAT = Dynamic;
+CREATE TABLE IF NOT EXISTS system_settings (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  setting_key VARCHAR(100) NOT NULL,
+  setting_value VARCHAR(500) NOT NULL,
+  description VARCHAR(255) NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_system_settings_key (setting_key)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO system_settings (setting_key, setting_value, description)
+VALUES ('guest_access_enabled', 'true', '是否允许未登录访客浏览、查找商品和查看公开信息')
+ON DUPLICATE KEY UPDATE setting_key = setting_key;
 
 -- ----------------------------
--- Records of forum_board
+-- V6__seed_test_merchants.sql
 -- ----------------------------
+INSERT INTO users (student_id, email, password, name, major, grade, role, status)
+VALUES
+  ('merchant01@test.com', 'merchant01@test.com', 'merchant123', 'Merchant One', 'Snack Test Store', 'merchant', 'merchant', 'active'),
+  ('merchant02@test.com', 'merchant02@test.com', 'merchant123', 'Merchant Two', 'Market Test Store', 'merchant', 'merchant', 'active'),
+  ('merchant03@test.com', 'merchant03@test.com', 'merchant123', 'Merchant Three', 'Service Test Store', 'merchant', 'merchant', 'active')
+ON DUPLICATE KEY UPDATE
+  name = VALUES(name),
+  major = VALUES(major),
+  grade = VALUES(grade),
+  role = VALUES(role),
+  status = VALUES(status);
 
--- ----------------------------
--- Table structure for forum_comment
--- ----------------------------
-DROP TABLE IF EXISTS `forum_comment`;
-CREATE TABLE `forum_comment`  (
-  `id` int UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '评论ID，自增主键',
-  `post_id` int UNSIGNED NOT NULL COMMENT '帖子ID，关联forum_post.id',
-  `user_id` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '评论人学号，关联user.student_id',
-  `parent_id` int UNSIGNED NULL DEFAULT NULL COMMENT '父评论ID，楼中楼用，关联本表id，顶级评论为NULL',
-  `content` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '评论内容',
-  `like_count` int NOT NULL DEFAULT 0 COMMENT '评论点赞次数',
-  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  `ext1` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL,
-  `ext2` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL,
-  `remark` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL,
-  PRIMARY KEY (`id`) USING BTREE,
-  INDEX `idx_post_id`(`post_id` ASC) USING BTREE,
-  INDEX `idx_user_id`(`user_id` ASC) USING BTREE,
-  INDEX `idx_parent_id`(`parent_id` ASC) USING BTREE,
-  CONSTRAINT `forum_comment_ibfk_1` FOREIGN KEY (`post_id`) REFERENCES `forum_post` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT,
-  CONSTRAINT `forum_comment_ibfk_2` FOREIGN KEY (`user_id`) REFERENCES `user` (`student_id`) ON DELETE CASCADE ON UPDATE RESTRICT
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '论坛评论表，支持楼中楼回复' ROW_FORMAT = Dynamic;
+INSERT INTO merchant_applications (
+  user_id, store_name, contact_name, phone, email, address, description,
+  status, audit_remark, auditor_id, audited_at
+)
+SELECT
+  u.id,
+  seed.store_name,
+  seed.contact_name,
+  seed.phone,
+  seed.email,
+  seed.address,
+  seed.description,
+  'approved',
+  'Seeded test merchant account',
+  1,
+  CURRENT_TIMESTAMP
+FROM users u
+INNER JOIN (
+  SELECT 'merchant01@test.com' AS email, 'Snack Test Store' AS store_name, 'Merchant One' AS contact_name,
+         '13800001001' AS phone, 'Campus East Gate Test Booth 01' AS address, 'Snack merchant test account' AS description
+  UNION ALL
+  SELECT 'merchant02@test.com', 'Market Test Store', 'Merchant Two',
+         '13800001002', 'Campus Market Test Area 02', 'Supermarket merchant test account'
+  UNION ALL
+  SELECT 'merchant03@test.com', 'Service Test Store', 'Merchant Three',
+         '13800001003', 'Student Service Center Booth 03', 'Service merchant test account'
+) seed ON seed.email = u.email
+ON DUPLICATE KEY UPDATE
+  store_name = VALUES(store_name),
+  contact_name = VALUES(contact_name),
+  phone = VALUES(phone),
+  email = VALUES(email),
+  address = VALUES(address),
+  description = VALUES(description),
+  status = VALUES(status),
+  audit_remark = VALUES(audit_remark),
+  auditor_id = VALUES(auditor_id),
+  audited_at = COALESCE(merchant_applications.audited_at, VALUES(audited_at));
 
--- ----------------------------
--- Records of forum_comment
--- ----------------------------
-
--- ----------------------------
--- Table structure for forum_like
--- ----------------------------
-DROP TABLE IF EXISTS `forum_like`;
-CREATE TABLE `forum_like`  (
-  `id` int UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '点赞ID，自增主键',
-  `user_id` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '点赞人学号，关联user.student_id',
-  `target_type` enum('post','comment') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '点赞目标类型：post-帖子，comment-评论',
-  `target_id` int UNSIGNED NOT NULL COMMENT '目标ID，关联forum_post.id或forum_comment.id',
-  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `ext1` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL,
-  `ext2` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL,
-  `remark` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL,
-  PRIMARY KEY (`id`) USING BTREE,
-  UNIQUE INDEX `uk_user_target`(`user_id` ASC, `target_type` ASC, `target_id` ASC) USING BTREE,
-  INDEX `idx_target`(`target_type` ASC, `target_id` ASC) USING BTREE,
-  CONSTRAINT `forum_like_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `user` (`student_id`) ON DELETE CASCADE ON UPDATE RESTRICT
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '论坛点赞表，帖子和评论通用' ROW_FORMAT = Dynamic;
-
--- ----------------------------
--- Records of forum_like
--- ----------------------------
-
--- ----------------------------
--- Table structure for forum_post
--- ----------------------------
-DROP TABLE IF EXISTS `forum_post`;
-CREATE TABLE `forum_post`  (
-  `id` int UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '帖子ID，自增主键',
-  `board_id` int UNSIGNED NOT NULL COMMENT '板块ID，关联forum_board.id',
-  `user_id` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '发帖人学号，关联user.student_id',
-  `title` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '帖子标题',
-  `content` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '帖子内容，支持图文混排',
-  `image_urls` json NULL COMMENT '帖子图片URL列表，JSON数组格式',
-  `view_count` int NOT NULL DEFAULT 0 COMMENT '浏览次数，自动统计',
-  `like_count` int NOT NULL DEFAULT 0 COMMENT '点赞次数，自动统计',
-  `comment_count` int NOT NULL DEFAULT 0 COMMENT '评论次数，自动统计',
-  `is_top` tinyint(1) NOT NULL DEFAULT 0 COMMENT '是否置顶：0-否，1-是，后台管理员设置',
-  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  `ext1` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL,
-  `ext2` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL,
-  `remark` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL,
-  PRIMARY KEY (`id`) USING BTREE,
-  INDEX `idx_board_id`(`board_id` ASC) USING BTREE,
-  INDEX `idx_user_id`(`user_id` ASC) USING BTREE,
-  INDEX `idx_create_time`(`create_time` ASC) USING BTREE,
-  INDEX `idx_is_top`(`is_top` ASC) USING BTREE,
-  CONSTRAINT `forum_post_ibfk_1` FOREIGN KEY (`board_id`) REFERENCES `forum_board` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT,
-  CONSTRAINT `forum_post_ibfk_2` FOREIGN KEY (`user_id`) REFERENCES `user` (`student_id`) ON DELETE CASCADE ON UPDATE RESTRICT
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '校园论坛帖子表' ROW_FORMAT = Dynamic;
-
--- ----------------------------
--- Records of forum_post
--- ----------------------------
-
--- ----------------------------
--- Table structure for operation_log
--- ----------------------------
-DROP TABLE IF EXISTS `operation_log`;
-CREATE TABLE `operation_log`  (
-  `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '日志ID，自增主键（用BIGINT避免数据量过大溢出）',
-  `operator_id` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '操作人学号，admin角色，关联user.student_id',
-  `operation_type` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '操作类型：ADD-新增，UPDATE-修改，DELETE-删除，QUERY-查询',
-  `target_module` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '操作目标模块：如user-用户管理，supermarket-超市管理',
-  `target_id` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '操作目标ID，如商品ID、用户学号',
-  `details` json NULL COMMENT '操作详情，JSON格式：{\"old_data\":\"旧值\",\"new_data\":\"新值\"}',
-  `ip_address` varchar(45) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '操作人IP地址，记录登录IP',
-  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '操作时间',
-  `ext1` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL,
-  `ext2` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL,
-  `remark` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL,
-  PRIMARY KEY (`id`) USING BTREE,
-  INDEX `idx_operator_id`(`operator_id` ASC) USING BTREE,
-  INDEX `idx_operation_type`(`operation_type` ASC) USING BTREE,
-  INDEX `idx_target_module`(`target_module` ASC) USING BTREE,
-  INDEX `idx_create_time`(`create_time` ASC) USING BTREE,
-  CONSTRAINT `operation_log_ibfk_1` FOREIGN KEY (`operator_id`) REFERENCES `user` (`student_id`) ON DELETE RESTRICT ON UPDATE RESTRICT
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '后台管理员操作日志表，所有操作可追溯，保障数据安全' ROW_FORMAT = Dynamic;
-
--- ----------------------------
--- Records of operation_log
--- ----------------------------
-
--- ----------------------------
--- Table structure for secondhand_favorite
--- ----------------------------
-DROP TABLE IF EXISTS `secondhand_favorite`;
-CREATE TABLE `secondhand_favorite`  (
-  `id` int UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '收藏ID，自增主键',
-  `user_id` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '用户学号，关联user.student_id',
-  `item_id` int UNSIGNED NOT NULL COMMENT '二手商品ID，关联secondhand_item.id',
-  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `ext1` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL,
-  `ext2` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL,
-  `remark` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL,
-  PRIMARY KEY (`id`) USING BTREE,
-  UNIQUE INDEX `uk_user_item`(`user_id` ASC, `item_id` ASC) USING BTREE,
-  INDEX `idx_user_id`(`user_id` ASC) USING BTREE,
-  INDEX `item_id`(`item_id` ASC) USING BTREE,
-  CONSTRAINT `secondhand_favorite_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `user` (`student_id`) ON DELETE CASCADE ON UPDATE RESTRICT,
-  CONSTRAINT `secondhand_favorite_ibfk_2` FOREIGN KEY (`item_id`) REFERENCES `secondhand_item` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '二手商品收藏表' ROW_FORMAT = Dynamic;
-
--- ----------------------------
--- Records of secondhand_favorite
--- ----------------------------
-
--- ----------------------------
--- Table structure for secondhand_item
--- ----------------------------
-DROP TABLE IF EXISTS `secondhand_item`;
-CREATE TABLE `secondhand_item`  (
-  `id` int UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '二手商品ID，自增主键',
-  `user_id` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '发布人学号，关联user.student_id',
-  `title` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '商品标题，如九成新笔记本电脑、大一高数教材',
-  `category` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '商品分类，如教材、电子产品、生活用品、体育器材',
-  `price` decimal(10, 2) NOT NULL COMMENT '商品价格，二手售价',
-  `image_urls` json NULL COMMENT '商品图片URL列表，JSON数组格式：[\"url1\",\"url2\"]',
-  `description` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '商品详情，如使用时长、成色、是否有损坏',
-  `audit_status` tinyint NOT NULL DEFAULT 0 COMMENT '审核状态：0-待审核，1-通过，2-拒绝',
-  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  `ext1` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL,
-  `ext2` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL,
-  `remark` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL,
-  PRIMARY KEY (`id`) USING BTREE,
-  INDEX `idx_category`(`category` ASC) USING BTREE,
-  INDEX `idx_audit_status`(`audit_status` ASC) USING BTREE,
-  INDEX `idx_user_id`(`user_id` ASC) USING BTREE,
-  INDEX `idx_price`(`price` ASC) USING BTREE,
-  CONSTRAINT `secondhand_item_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `user` (`student_id`) ON DELETE CASCADE ON UPDATE RESTRICT
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '二手商品发布表，需后台审核' ROW_FORMAT = Dynamic;
-
--- ----------------------------
--- Records of secondhand_item
--- ----------------------------
-
--- ----------------------------
--- Table structure for snack_item
--- ----------------------------
-DROP TABLE IF EXISTS `snack_item`;
-CREATE TABLE `snack_item`  (
-  `id` int UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '菜品ID，自增主键',
-  `vendor_id` int UNSIGNED NOT NULL COMMENT '商家ID，关联snack_vendor.id',
-  `name` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '菜品名称，如经典烤冷面、加肠手抓饼',
-  `price` decimal(10, 2) NOT NULL COMMENT '菜品单价',
-  `image_url` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '菜品图片URL',
-  `description` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL COMMENT '菜品描述，如配料、口味',
-  `is_on_shelf` tinyint(1) NOT NULL DEFAULT 1 COMMENT '是否上架：0-下架，1-上架',
-  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  `ext1` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL,
-  `ext2` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL,
-  `remark` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL,
-  PRIMARY KEY (`id`) USING BTREE,
-  INDEX `idx_vendor_shelf`(`vendor_id` ASC, `is_on_shelf` ASC) USING BTREE,
-  INDEX `idx_price`(`price` ASC) USING BTREE,
-  CONSTRAINT `snack_item_ibfk_1` FOREIGN KEY (`vendor_id`) REFERENCES `snack_vendor` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '东门小吃摊菜品信息表' ROW_FORMAT = Dynamic;
-
--- ----------------------------
--- Records of snack_item
--- ----------------------------
-
--- ----------------------------
--- Table structure for snack_order
--- ----------------------------
-DROP TABLE IF EXISTS `snack_order`;
-CREATE TABLE `snack_order`  (
-  `id` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '订单ID，自定义格式：SN+时间戳，如SN20240615123456',
-  `user_id` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '用户学号，关联user.student_id',
-  `vendor_id` int UNSIGNED NOT NULL COMMENT '商家ID，关联snack_vendor.id',
-  `total_amount` decimal(10, 2) NOT NULL COMMENT '订单总金额',
-  `status` tinyint NOT NULL DEFAULT 0 COMMENT '订单状态：0-待支付，1-已支付，2-已取消，3-已完成',
-  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  `ext1` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL,
-  `ext2` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL,
-  `remark` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL COMMENT '用户备注，如少辣、多酱',
-  PRIMARY KEY (`id`) USING BTREE,
-  INDEX `idx_user_id`(`user_id` ASC) USING BTREE,
-  INDEX `idx_vendor_id`(`vendor_id` ASC) USING BTREE,
-  INDEX `idx_status`(`status` ASC) USING BTREE,
-  CONSTRAINT `snack_order_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `user` (`student_id`) ON DELETE CASCADE ON UPDATE RESTRICT,
-  CONSTRAINT `snack_order_ibfk_2` FOREIGN KEY (`vendor_id`) REFERENCES `snack_vendor` (`id`) ON DELETE RESTRICT ON UPDATE RESTRICT
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '东门小吃摊订单主表' ROW_FORMAT = Dynamic;
-
--- ----------------------------
--- Records of snack_order
--- ----------------------------
-
--- ----------------------------
--- Table structure for snack_order_item
--- ----------------------------
-DROP TABLE IF EXISTS `snack_order_item`;
-CREATE TABLE `snack_order_item`  (
-  `id` int UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '订单明细ID，自增主键',
-  `order_id` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '订单ID，关联snack_order.id',
-  `item_id` int UNSIGNED NOT NULL COMMENT '菜品ID，关联snack_item.id',
-  `item_name` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '菜品名称（冗余存储）',
-  `item_price` decimal(10, 2) NOT NULL COMMENT '菜品单价（冗余存储），记录下单时价格',
-  `quantity` int NOT NULL COMMENT '购买数量',
-  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `ext1` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL,
-  `ext2` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL,
-  `remark` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL,
-  PRIMARY KEY (`id`) USING BTREE,
-  INDEX `idx_order_id`(`order_id` ASC) USING BTREE,
-  INDEX `item_id`(`item_id` ASC) USING BTREE,
-  CONSTRAINT `snack_order_item_ibfk_1` FOREIGN KEY (`order_id`) REFERENCES `snack_order` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT,
-  CONSTRAINT `snack_order_item_ibfk_2` FOREIGN KEY (`item_id`) REFERENCES `snack_item` (`id`) ON DELETE RESTRICT ON UPDATE RESTRICT
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '东门小吃摊订单明细表' ROW_FORMAT = Dynamic;
-
--- ----------------------------
--- Records of snack_order_item
--- ----------------------------
-
--- ----------------------------
--- Table structure for snack_vendor
--- ----------------------------
-DROP TABLE IF EXISTS `snack_vendor`;
-CREATE TABLE `snack_vendor`  (
-  `id` int UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '商家ID，自增主键',
-  `name` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '商家名称，如东门烤冷面、手抓饼',
-  `location` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '商家位置，如东门左侧1号、东门右侧3号',
-  `contact_info` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '商家联系方式，如摊主手机号',
-  `business_hours` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '营业时间，如10:00-22:00',
-  `logo_url` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '商家Logo/门头图URL',
-  `description` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL COMMENT '商家简介，如特色菜品',
-  `is_active` tinyint(1) NOT NULL DEFAULT 1 COMMENT '是否营业：0-停业，1-营业，后台控制',
-  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  `ext1` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL,
-  `ext2` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL,
-  `remark` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL,
-  PRIMARY KEY (`id`) USING BTREE,
-  INDEX `idx_is_active`(`is_active` ASC) USING BTREE
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '东门小吃摊商家信息表' ROW_FORMAT = Dynamic;
-
--- ----------------------------
--- Records of snack_vendor
--- ----------------------------
-
--- ----------------------------
--- Table structure for study_material
--- ----------------------------
-DROP TABLE IF EXISTS `study_material`;
-CREATE TABLE `study_material`  (
-  `id` int UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '资料ID，自增主键',
-  `user_id` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '上传人学号，关联user.student_id',
-  `category_id` int UNSIGNED NOT NULL COMMENT '分类ID，关联study_material_category.id',
-  `title` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '资料标题，如大一高数期末复习题、C语言课后答案',
-  `file_url` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '资料下载链接，支持云存储链接',
-  `description` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL COMMENT '资料简介，如适用范围、资料类型（真题/课件/笔记）',
-  `audit_status` tinyint NOT NULL DEFAULT 0 COMMENT '审核状态：0-待审核，1-通过，2-拒绝',
-  `download_count` int NOT NULL DEFAULT 0 COMMENT '资料下载次数，自动统计',
-  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  `ext1` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL,
-  `ext2` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL,
-  `remark` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL,
-  PRIMARY KEY (`id`) USING BTREE,
-  INDEX `idx_category_id`(`category_id` ASC) USING BTREE,
-  INDEX `idx_audit_status`(`audit_status` ASC) USING BTREE,
-  INDEX `idx_user_id`(`user_id` ASC) USING BTREE,
-  INDEX `idx_download_count`(`download_count` ASC) USING BTREE,
-  CONSTRAINT `study_material_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `user` (`student_id`) ON DELETE CASCADE ON UPDATE RESTRICT,
-  CONSTRAINT `study_material_ibfk_2` FOREIGN KEY (`category_id`) REFERENCES `study_material_category` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '学习资料信息表，学生上传后需后台审核' ROW_FORMAT = Dynamic;
-
--- ----------------------------
--- Records of study_material
--- ----------------------------
-
--- ----------------------------
--- Table structure for study_material_category
--- ----------------------------
-DROP TABLE IF EXISTS `study_material_category`;
-CREATE TABLE `study_material_category`  (
-  `id` int UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '分类ID，自增主键',
-  `major` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '专业名称，如计算机科学与技术、土木工程、会计学',
-  `grade` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '年级，如大一、大二、大三、大四',
-  `subject` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '学科名称，如高等数学、C语言、结构力学',
-  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  `ext1` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL,
-  `ext2` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL,
-  `remark` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL,
-  PRIMARY KEY (`id`) USING BTREE,
-  UNIQUE INDEX `uk_major_grade_subject`(`major` ASC, `grade` ASC, `subject` ASC) USING BTREE,
-  INDEX `idx_major`(`major` ASC) USING BTREE,
-  INDEX `idx_grade`(`grade` ASC) USING BTREE,
-  INDEX `idx_subject`(`subject` ASC) USING BTREE
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '学习资料分类表，按长安大学专业体系划分' ROW_FORMAT = Dynamic;
-
--- ----------------------------
--- Records of study_material_category
--- ----------------------------
-
--- ----------------------------
--- Table structure for supermarket_cart
--- ----------------------------
-DROP TABLE IF EXISTS `supermarket_cart`;
-CREATE TABLE `supermarket_cart`  (
-  `id` int UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '购物车ID，自增主键',
-  `user_id` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '用户学号，关联user.student_id',
-  `item_id` int UNSIGNED NOT NULL COMMENT '商品ID，关联supermarket_item.id',
-  `quantity` int NOT NULL DEFAULT 1 COMMENT '购买数量，默认1，可修改',
-  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  `ext1` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL,
-  `ext2` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL,
-  `remark` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL,
-  PRIMARY KEY (`id`) USING BTREE,
-  UNIQUE INDEX `uk_user_item`(`user_id` ASC, `item_id` ASC) USING BTREE,
-  INDEX `item_id`(`item_id` ASC) USING BTREE,
-  CONSTRAINT `supermarket_cart_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `user` (`student_id`) ON DELETE CASCADE ON UPDATE RESTRICT,
-  CONSTRAINT `supermarket_cart_ibfk_2` FOREIGN KEY (`item_id`) REFERENCES `supermarket_item` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '超市购物车表' ROW_FORMAT = Dynamic;
-
--- ----------------------------
--- Records of supermarket_cart
--- ----------------------------
-
--- ----------------------------
--- Table structure for supermarket_category
--- ----------------------------
-DROP TABLE IF EXISTS `supermarket_category`;
-CREATE TABLE `supermarket_category`  (
-  `id` int UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '分类ID，自增主键',
-  `name` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '分类名称，如零食、碳酸饮料、苹果等',
-  `level` tinyint NOT NULL COMMENT '分类层级：1-一级，2-二级，3-三级',
-  `parent_id` int UNSIGNED NULL DEFAULT NULL COMMENT '父分类ID，一级分类为NULL，关联本表id',
-  `sort_order` int NOT NULL DEFAULT 0 COMMENT '排序序号，数字越小越靠前',
-  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  `ext1` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL,
-  `ext2` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL,
-  `remark` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL,
-  PRIMARY KEY (`id`) USING BTREE,
-  INDEX `idx_parent_level`(`parent_id` ASC, `level` ASC) USING BTREE
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '超市商品三级分类表' ROW_FORMAT = Dynamic;
-
--- ----------------------------
--- Records of supermarket_category
--- ----------------------------
-
--- ----------------------------
--- Table structure for supermarket_item
--- ----------------------------
-DROP TABLE IF EXISTS `supermarket_item`;
-CREATE TABLE `supermarket_item`  (
-  `id` int UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '商品ID，自增主键',
-  `name` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '商品名称，如可乐500ml、富士苹果500g',
-  `category_level1` int UNSIGNED NOT NULL COMMENT '一级分类ID，关联supermarket_category.id',
-  `category_level2` int UNSIGNED NOT NULL COMMENT '二级分类ID，关联supermarket_category.id',
-  `category_level3` int UNSIGNED NOT NULL COMMENT '三级分类ID，关联supermarket_category.id',
-  `price` decimal(10, 2) NOT NULL COMMENT '商品单价，保留2位小数',
-  `stock` int NOT NULL DEFAULT 0 COMMENT '商品库存，库存为0时前台自动下架',
-  `spec` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '商品规格，如500ml、1kg、整箱等',
-  `image_url` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '商品主图URL',
-  `description` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL COMMENT '商品描述，如口味、保质期等',
-  `is_on_shelf` tinyint(1) NOT NULL DEFAULT 1 COMMENT '是否上架：0-下架，1-上架，后台手动控制',
-  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  `ext1` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL,
-  `ext2` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL,
-  `remark` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL,
-  PRIMARY KEY (`id`) USING BTREE,
-  INDEX `idx_category1_shelf`(`category_level1` ASC, `is_on_shelf` ASC) USING BTREE,
-  INDEX `idx_category2`(`category_level2` ASC) USING BTREE,
-  INDEX `idx_category3`(`category_level3` ASC) USING BTREE,
-  INDEX `idx_price`(`price` ASC) USING BTREE
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '超市商品信息表，存储所有零食/水果/饮料信息' ROW_FORMAT = Dynamic;
-
--- ----------------------------
--- Records of supermarket_item
--- ----------------------------
-
--- ----------------------------
--- Table structure for supermarket_order
--- ----------------------------
-DROP TABLE IF EXISTS `supermarket_order`;
-CREATE TABLE `supermarket_order`  (
-  `id` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '订单ID，自定义格式：SM+时间戳，如SM20240615123456',
-  `user_id` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '用户学号，关联user.student_id',
-  `total_amount` decimal(10, 2) NOT NULL COMMENT '订单总金额，商品单价*数量求和',
-  `status` tinyint NOT NULL DEFAULT 0 COMMENT '订单状态：0-待支付，1-已支付，2-已取消，3-已完成',
-  `delivery_address` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '配送地址，校园内地址',
-  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  `ext1` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL,
-  `ext2` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL,
-  `remark` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL COMMENT '用户备注，如尽快配送',
-  PRIMARY KEY (`id`) USING BTREE,
-  INDEX `idx_user_id`(`user_id` ASC) USING BTREE,
-  INDEX `idx_status`(`status` ASC) USING BTREE,
-  INDEX `idx_create_time`(`create_time` ASC) USING BTREE,
-  CONSTRAINT `supermarket_order_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `user` (`student_id`) ON DELETE CASCADE ON UPDATE RESTRICT
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '超市订单主表' ROW_FORMAT = Dynamic;
-
--- ----------------------------
--- Records of supermarket_order
--- ----------------------------
-
--- ----------------------------
--- Table structure for supermarket_order_item
--- ----------------------------
-DROP TABLE IF EXISTS `supermarket_order_item`;
-CREATE TABLE `supermarket_order_item`  (
-  `id` int UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '订单明细ID，自增主键',
-  `order_id` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '订单ID，关联supermarket_order.id',
-  `item_id` int UNSIGNED NOT NULL COMMENT '商品ID，关联supermarket_item.id',
-  `item_name` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '商品名称（冗余存储），避免商品删除后订单无名称',
-  `item_price` decimal(10, 2) NOT NULL COMMENT '商品单价（冗余存储），记录下单时的价格',
-  `quantity` int NOT NULL COMMENT '购买数量',
-  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `ext1` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL,
-  `ext2` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL,
-  `remark` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL,
-  PRIMARY KEY (`id`) USING BTREE,
-  INDEX `idx_order_id`(`order_id` ASC) USING BTREE,
-  INDEX `item_id`(`item_id` ASC) USING BTREE,
-  CONSTRAINT `supermarket_order_item_ibfk_1` FOREIGN KEY (`order_id`) REFERENCES `supermarket_order` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT,
-  CONSTRAINT `supermarket_order_item_ibfk_2` FOREIGN KEY (`item_id`) REFERENCES `supermarket_item` (`id`) ON DELETE RESTRICT ON UPDATE RESTRICT
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '超市订单明细表，存储订单内具体商品信息' ROW_FORMAT = Dynamic;
-
--- ----------------------------
--- Records of supermarket_order_item
--- ----------------------------
-
--- ----------------------------
--- Table structure for tutoring_post
--- ----------------------------
-DROP TABLE IF EXISTS `tutoring_post`;
-CREATE TABLE `tutoring_post`  (
-  `id` int UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '家教信息ID，自增主键',
-  `user_id` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '发布人学号，关联user.student_id',
-  `subject` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '辅导科目，如数学、英语、物理',
-  `grade` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '辅导年级，如小学三年级、初中二年级、高中理科',
-  `salary` decimal(10, 2) NOT NULL COMMENT '期望薪资，单位：元/小时',
-  `description` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '家教详情，如辅导地点、自身优势、辅导时间',
-  `contact_info` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '联系方式，如手机号、微信',
-  `audit_status` tinyint NOT NULL DEFAULT 0 COMMENT '审核状态：0-待审核，1-审核通过，2-审核拒绝',
-  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  `ext1` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL,
-  `ext2` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL,
-  `remark` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL COMMENT '审核备注，后台管理员填写',
-  PRIMARY KEY (`id`) USING BTREE,
-  INDEX `idx_subject_grade`(`subject` ASC, `grade` ASC) USING BTREE,
-  INDEX `idx_audit_status`(`audit_status` ASC) USING BTREE,
-  INDEX `idx_user_id`(`user_id` ASC) USING BTREE,
-  CONSTRAINT `tutoring_post_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `user` (`student_id`) ON DELETE CASCADE ON UPDATE RESTRICT
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '家教信息发布表，需后台审核后前台展示' ROW_FORMAT = Dynamic;
-
--- ----------------------------
--- Records of tutoring_post
--- ----------------------------
-
--- ----------------------------
--- Table structure for user
--- ----------------------------
-DROP TABLE IF EXISTS `user`;
-CREATE TABLE `user`  (
-  `student_id` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '学号，长安大学学号格式，作为唯一主键',
-  `edu_email` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '长安大学教育邮箱，后缀必须为@chd.edu.cn',
-  `password` varchar(60) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'BCrypt加密后的密码，不可逆加密存储',
-  `nickname` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '用户昵称，前台展示用',
-  `real_name` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '真实姓名，可选填',
-  `phone` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '手机号，可选填，用于联系',
-  `avatar_url` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '用户头像URL，支持远程链接',
-  `is_verified` tinyint(1) NOT NULL DEFAULT 0 COMMENT '邮箱验证状态：0-未验证，1-已验证（未验证不可登录）',
-  `account_status` tinyint NOT NULL DEFAULT 1 COMMENT '账号状态：0-禁用，1-正常，2-永久封禁',
-  `role` enum('student','admin') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'student' COMMENT '用户角色：student-普通学生，admin-后台管理员',
-  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '账号创建时间',
-  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '信息更新时间，自动触发',
-  `ext1` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '通用拓展字段1，适配后续功能升级',
-  `ext2` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '通用拓展字段2，适配后续功能升级',
-  `remark` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL COMMENT '备注字段，后台管理员可编辑',
-  PRIMARY KEY (`student_id`) USING BTREE,
-  UNIQUE INDEX `uk_edu_email`(`edu_email` ASC) USING BTREE,
-  INDEX `idx_role`(`role` ASC) USING BTREE,
-  INDEX `idx_account_status`(`account_status` ASC) USING BTREE
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '用户核心表，存储所有注册用户信息' ROW_FORMAT = Dynamic;
-
--- ----------------------------
--- Records of user
--- ----------------------------
+INSERT INTO merchant_profiles (
+  user_id, application_id, store_name, contact_name, phone, email, address,
+  description, status, approved_at
+)
+SELECT
+  u.id,
+  ma.id,
+  seed.store_name,
+  seed.contact_name,
+  seed.phone,
+  seed.email,
+  seed.address,
+  seed.description,
+  'active',
+  CURRENT_TIMESTAMP
+FROM users u
+INNER JOIN merchant_applications ma ON ma.user_id = u.id
+INNER JOIN (
+  SELECT 'merchant01@test.com' AS email, 'Snack Test Store' AS store_name, 'Merchant One' AS contact_name,
+         '13800001001' AS phone, 'Campus East Gate Test Booth 01' AS address, 'Snack merchant test account' AS description
+  UNION ALL
+  SELECT 'merchant02@test.com', 'Market Test Store', 'Merchant Two',
+         '13800001002', 'Campus Market Test Area 02', 'Supermarket merchant test account'
+  UNION ALL
+  SELECT 'merchant03@test.com', 'Service Test Store', 'Merchant Three',
+         '13800001003', 'Student Service Center Booth 03', 'Service merchant test account'
+) seed ON seed.email = u.email
+ON DUPLICATE KEY UPDATE
+  application_id = VALUES(application_id),
+  store_name = VALUES(store_name),
+  contact_name = VALUES(contact_name),
+  phone = VALUES(phone),
+  email = VALUES(email),
+  address = VALUES(address),
+  description = VALUES(description),
+  status = VALUES(status),
+  approved_at = COALESCE(merchant_profiles.approved_at, VALUES(approved_at));
 
 SET FOREIGN_KEY_CHECKS = 1;

@@ -238,7 +238,11 @@ const passwordRules = {
   ]
 }
 
-const roleLabel = computed(() => currentProfile.value?.role === 'admin' ? '管理员账号' : '学生账号')
+const roleLabel = computed(() => {
+  if (currentProfile.value?.role === 'admin') return '管理员账号'
+  if (currentProfile.value?.role === 'merchant') return '商家账号'
+  return '学生账号'
+})
 const statusLabel = computed(() => currentProfile.value?.status === 'active' ? '正常使用' : '状态异常')
 const displayName = computed(() => currentProfile.value?.name || '校园用户')
 

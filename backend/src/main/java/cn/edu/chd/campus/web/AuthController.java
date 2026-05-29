@@ -29,14 +29,24 @@ public class AuthController {
     return ApiResponse.ok(authService.sendVerification(Maps.mutable(request)));
   }
 
+  @PostMapping("/send-merchant-verification")
+  public ApiResponse<Map<String, Object>> sendMerchantVerification(@RequestBody Map<String, Object> request) {
+    return ApiResponse.ok(authService.sendMerchantVerification(Maps.mutable(request)));
+  }
+
   @PostMapping("/register")
   public ApiResponse<Map<String, Object>> register(@RequestBody Map<String, Object> request) {
-    return ApiResponse.ok(authService.register(Maps.mutable(request)), "注册成功");
+    return ApiResponse.ok(authService.register(Maps.mutable(request)), "Registration succeeded");
+  }
+
+  @PostMapping("/merchant-register")
+  public ApiResponse<Map<String, Object>> merchantRegister(@RequestBody Map<String, Object> request) {
+    return ApiResponse.ok(authService.registerMerchant(Maps.mutable(request)), "Merchant application submitted");
   }
 
   @PostMapping("/login")
   public ApiResponse<Map<String, Object>> login(@RequestBody Map<String, Object> request, HttpServletRequest servletRequest) {
-    return ApiResponse.ok(authService.login(Maps.mutable(request), clientIp(servletRequest), servletRequest.getHeader("User-Agent")), "登录成功");
+    return ApiResponse.ok(authService.login(Maps.mutable(request), clientIp(servletRequest), servletRequest.getHeader("User-Agent")), "Login succeeded");
   }
 
   @GetMapping("/me")
@@ -46,18 +56,18 @@ public class AuthController {
 
   @PutMapping("/me")
   public ApiResponse<Map<String, Object>> updateProfile(Authentication authentication, @RequestBody Map<String, Object> request) {
-    return ApiResponse.ok(authService.updateProfile(SecuritySupport.user(authentication).id(), Maps.mutable(request)), "个人信息已更新");
+    return ApiResponse.ok(authService.updateProfile(SecuritySupport.user(authentication).id(), Maps.mutable(request)), "Profile updated");
   }
 
   @PutMapping("/password")
   public ApiResponse<Void> updatePassword(Authentication authentication, @RequestBody Map<String, Object> request) {
     authService.updatePassword(SecuritySupport.user(authentication).id(), Maps.mutable(request));
-    return ApiResponse.ok("密码修改成功");
+    return ApiResponse.ok("Password updated");
   }
 
   @PostMapping("/logout")
   public ApiResponse<Void> logout() {
-    return ApiResponse.ok("退出登录成功");
+    return ApiResponse.ok("Logout succeeded");
   }
 
   private String clientIp(HttpServletRequest request) {

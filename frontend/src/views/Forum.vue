@@ -2,7 +2,8 @@
   <div class="forum-page">
     <div class="page-header">
       <h2>校园论坛</h2>
-      <el-button type="primary" @click="publishDialogVisible = true">发布帖子</el-button>
+      <el-button v-if="canInteract" type="primary" @click="publishDialogVisible = true">发布帖子</el-button>
+      <el-tag v-else type="info">{{ isGuest ? '游客仅可浏览和查找' : '商家仅可浏览' }}</el-tag>
     </div>
 
     <el-card class="filter-card">
@@ -76,7 +77,7 @@
             :preview-src-list="selectedPost.images"
           />
         </div>
-        <div class="detail-actions">
+        <div v-if="canInteract" class="detail-actions">
           <el-button type="primary" @click="likePost(selectedPost)">
             <el-icon><Star /></el-icon> 点赞 ({{ selectedPost.likes }})
           </el-button>
@@ -96,7 +97,7 @@
           </div>
           <el-empty v-if="selectedPost.comments.length === 0" description="暂无评论" />
         </div>
-        <div class="comment-form">
+        <div v-if="canInteract" class="comment-form">
           <el-input 
             v-model="commentText" 
             type="textarea" 
@@ -136,11 +137,12 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { UserFilled, ChatDotRound, Star } from '@element-plus/icons-vue'
 import { forumApi } from '@/api'
 import ImageDropInput from '@/components/ImageDropInput.vue'
+import { useUserStore } from '@/stores/user'
 
 const categories = ref([])
 const posts = ref([])
@@ -155,6 +157,10 @@ const commenting = ref(false)
 const publishDialogVisible = ref(false)
 const publishing = ref(false)
 const publishFormRef = ref(null)
+const userStore = useUserStore()
+const isMerchant = computed(() => userStore.user?.role === 'merchant')
+const isGuest = computed(() => !userStore.token)
+const canInteract = computed(() => !isGuest.value && !isMerchant.value)
 const publishForm = ref({
   title: '',
   category: '',
@@ -217,6 +223,10 @@ const showDetail = (post) => {
 }
 
 const likePost = async (post) => {
+  if (!canInteract.value) {
+    ElMessage.warning('当前身份只能浏览帖子')
+    return
+  }
   try {
     await forumApi.likePost(post.id)
     post.likes++
@@ -227,6 +237,10 @@ const likePost = async (post) => {
 }
 
 const submitComment = async () => {
+  if (!canInteract.value) {
+    ElMessage.warning('当前身份只能浏览帖子')
+    return
+  }
   if (!commentText.value.trim()) {
     ElMessage.warning('请输入评论内容')
     return
@@ -245,6 +259,10 @@ const submitComment = async () => {
 }
 
 const submitPublish = async () => {
+  if (!canInteract.value) {
+    ElMessage.warning('当前身份不能发布帖子')
+    return
+  }
   if (!publishFormRef.value) return
   await publishFormRef.value.validate(async (valid) => {
     if (valid) {

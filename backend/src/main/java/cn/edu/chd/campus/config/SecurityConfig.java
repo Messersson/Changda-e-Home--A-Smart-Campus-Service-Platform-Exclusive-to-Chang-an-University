@@ -41,18 +41,27 @@ public class SecurityConfig {
         .cors(cors -> {})
         .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
         .authorizeHttpRequests(auth -> auth
-            .requestMatchers("/api/health", "/actuator/health/**", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
-            .requestMatchers(HttpMethod.POST, "/api/auth/send-verification", "/api/auth/register", "/api/auth/login").permitAll()
+            .requestMatchers("/api/health", "/api/public/**", "/actuator/health/**", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+            .requestMatchers(HttpMethod.POST,
+                "/api/auth/send-verification",
+                "/api/auth/send-merchant-verification",
+                "/api/auth/register",
+                "/api/auth/merchant-register",
+                "/api/auth/login").permitAll()
             .requestMatchers(HttpMethod.POST, "/api/payments/alipay/notify", "/api/payments/wechat/notify", "/api/payments/wechat/refund-notify").permitAll()
             .requestMatchers(HttpMethod.GET,
                 "/api/snack/merchants", "/api/snack/list", "/api/snack/detail/**",
                 "/api/supermarket/categories", "/api/supermarket/products", "/api/supermarket/product/**",
-                "/api/tutor/list", "/api/tutor/detail/**",
                 "/api/secondhand/list", "/api/secondhand/detail/**",
-                "/api/driving-school/list", "/api/driving-school/detail/**",
                 "/api/study-material/list", "/api/study-material/detail/**",
                 "/api/forum/categories", "/api/forum/list", "/api/forum/detail/**").permitAll()
             .requestMatchers("/api/admin/**").hasRole("ADMIN")
+            .requestMatchers("/api/merchant/**").hasAnyRole("MERCHANT", "ADMIN")
+            .requestMatchers(HttpMethod.GET, "/api/forum/my").hasAnyRole("STUDENT", "ADMIN")
+            .requestMatchers(HttpMethod.POST, "/api/forum/**").hasAnyRole("STUDENT", "ADMIN")
+            .requestMatchers("/api/snack/**", "/api/supermarket/**", "/api/tutor/**",
+                "/api/secondhand/**", "/api/driving-school/**", "/api/study-material/**",
+                "/api/after-sales/**", "/api/payments/**").hasAnyRole("STUDENT", "ADMIN")
             .anyRequest().authenticated())
         .exceptionHandling(exception -> exception
             .authenticationEntryPoint((request, response, authException) -> {

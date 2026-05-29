@@ -22,6 +22,33 @@
       </div>
     </section>
 
+    <section class="guest-access-panel glass-panel">
+      <div class="guest-access-panel__copy">
+        <span>Guest Access</span>
+        <h3>访客浏览总开关</h3>
+        <p>关闭后，未登录访客不能浏览、查找公开信息，也不能查看商家联系方式；登录用户不受影响。</p>
+      </div>
+      <div class="guest-access-panel__actions">
+        <el-tag :type="guestAccessEnabled ? 'success' : 'danger'">
+          {{ guestAccessEnabled ? '当前已开启' : '当前已关闭' }}
+        </el-tag>
+        <el-switch
+          v-model="guestAccessEnabled"
+          :loading="guestAccessLoading"
+          active-text="允许访客"
+          inactive-text="禁止访客"
+          @change="updateGuestAccess"
+        />
+        <el-button
+          :type="guestAccessEnabled ? 'danger' : 'primary'"
+          :loading="guestAccessLoading"
+          @click="toggleGuestAccess"
+        >
+          {{ guestAccessEnabled ? '关闭访客功能' : '开启访客功能' }}
+        </el-button>
+      </div>
+    </section>
+
     <section class="stats-grid">
       <article v-for="card in statCards" :key="card.key" class="stat-card glass-panel">
         <div class="stat-card__head">
@@ -90,6 +117,7 @@
 
 <script setup>
 import { computed, onMounted, ref } from 'vue'
+import { ElMessage } from 'element-plus'
 import { adminApi } from '@/api'
 import { User, Bowl, ShoppingCart, Reading, Goods, ChatDotRound, Document, Van } from '@element-plus/icons-vue'
 
@@ -115,6 +143,9 @@ const stats = ref({
   unpaidOrderCount: 0,
   totalRevenue: 0
 })
+const guestAccessEnabled = ref(true)
+const guestAccessLoading = ref(false)
+const lastGuestAccessEnabled = ref(true)
 
 const numberValue = (value) => {
   const parsed = Number(value ?? 0)
@@ -205,6 +236,37 @@ const loadStats = async () => {
   await loadStatsSummary()
   await fillOrderStatsFromOrders()
   await fillContentAssetStats()
+}
+
+const loadGuestAccess = async () => {
+  try {
+    const res = await adminApi.getGuestAccess()
+    guestAccessEnabled.value = res.data?.guestAccessEnabled !== false
+    lastGuestAccessEnabled.value = guestAccessEnabled.value
+  } catch (error) {
+    console.error('读取访客设置失败:', error)
+  }
+}
+
+const updateGuestAccess = async (value) => {
+  const previousValue = lastGuestAccessEnabled.value
+  const nextValue = Boolean(value)
+  guestAccessLoading.value = true
+  try {
+    const res = await adminApi.updateGuestAccess({ guestAccessEnabled: nextValue })
+    guestAccessEnabled.value = res.data?.guestAccessEnabled !== false
+    lastGuestAccessEnabled.value = guestAccessEnabled.value
+    ElMessage.success(guestAccessEnabled.value ? '访客浏览已开启' : '访客浏览已关闭')
+  } catch (error) {
+    guestAccessEnabled.value = previousValue
+    console.error('更新访客设置失败:', error)
+  } finally {
+    guestAccessLoading.value = false
+  }
+}
+
+const toggleGuestAccess = () => {
+  updateGuestAccess(!guestAccessEnabled.value)
 }
 
 const loadStatsSummary = async () => {
@@ -328,6 +390,7 @@ const formatCurrency = (value) => numberValue(value).toFixed(2)
 
 onMounted(() => {
   loadStats()
+  loadGuestAccess()
 })
 </script>
 
@@ -356,6 +419,48 @@ onMounted(() => {
 .dashboard-hero p {
   margin: 0;
   color: var(--app-text-soft);
+}
+
+.guest-access-panel {
+  margin-bottom: 20px;
+  padding: 22px 24px;
+  border-radius: var(--app-radius-xl);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 18px;
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.guest-access-panel__copy span {
+  display: inline-flex;
+  margin-bottom: 8px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: rgba(79, 124, 255, 0.12);
+  color: #3159d5;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.guest-access-panel__copy h3 {
+  margin: 0 0 8px;
+  color: #162441;
+  font-size: 22px;
+}
+
+.guest-access-panel__copy p {
+  margin: 0;
+  color: var(--app-text-soft);
+  line-height: 1.7;
+}
+
+.guest-access-panel__actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .hero-pills {
@@ -511,6 +616,16 @@ onMounted(() => {
   .hero-pills {
     width: 100%;
     justify-content: space-between;
+  }
+
+  .guest-access-panel {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .guest-access-panel__actions {
+    width: 100%;
+    justify-content: flex-start;
   }
 }
 

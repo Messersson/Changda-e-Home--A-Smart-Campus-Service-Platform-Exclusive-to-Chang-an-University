@@ -28,6 +28,10 @@
             <el-icon><User /></el-icon>
             <span>用户管理</span>
           </el-menu-item>
+          <el-menu-item index="/admin/merchants">
+            <el-icon><Shop /></el-icon>
+            <span>商家管理</span>
+          </el-menu-item>
           <el-menu-item index="/admin/snacks">
             <el-icon><Bowl /></el-icon>
             <span>小吃摊管理</span>
@@ -126,6 +130,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import UserProfileDialog from '@/components/UserProfileDialog.vue'
 import adminConsoleBg from '@/assets/bg-admin-console.svg'
+import { Shop } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -142,6 +147,7 @@ const currentTitle = computed(() => {
   const titles = {
     '/admin/dashboard': '数据统计',
     '/admin/users': '用户管理',
+    '/admin/merchants': '商家管理',
     '/admin/snacks': '小吃摊管理',
     '/admin/supermarket': '超市管理',
     '/admin/tutors': '家教管理',

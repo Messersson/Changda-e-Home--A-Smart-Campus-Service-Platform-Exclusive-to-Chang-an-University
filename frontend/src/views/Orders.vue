@@ -123,6 +123,12 @@
             >
               取消订单
             </el-button>
+            <el-button v-if="canRequestAfterSale(order)" plain @click="requestAfterSale(order, 'refund')">
+              申请退款
+            </el-button>
+            <el-button v-if="canRequestAfterSale(order)" plain @click="requestAfterSale(order, 'return')">
+              申请退货
+            </el-button>
           </div>
         </article>
       </div>
@@ -134,7 +140,7 @@
 import { computed, onActivated, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { RefreshRight } from '@element-plus/icons-vue'
-import { drivingSchoolApi, secondhandApi, snackApi, supermarketApi, tutorApi } from '@/api'
+import { afterSaleApi, drivingSchoolApi, secondhandApi, snackApi, supermarketApi, tutorApi } from '@/api'
 import { useRouter } from 'vue-router'
 import { startPaymentByOrderId } from '@/utils/paymentFlow'
 
@@ -375,6 +381,11 @@ const canPay = (order) => {
   return getPaymentStatus(order) !== 'paid'
 }
 
+const canRequestAfterSale = (order) => {
+  if (!order?.merchantId && !order?.merchant_id) return false
+  return !['cancelled', 'refunded', 'returned'].includes(order.status)
+}
+
 const replaceOrder = (type, updatedOrder) => {
   const normalized = normalizeOrder(updatedOrder, type)
   orderBuckets[type] = orderBuckets[type].map((item) => {
@@ -466,6 +477,22 @@ const cancelOrder = async (order) => {
     delete nextMap[key]
     cancellingMap.value = nextMap
   }
+}
+
+const requestAfterSale = async (order, type) => {
+  const label = type === 'return' ? '退货' : '退款'
+  const { value } = await ElMessageBox.prompt(`请输入${label}原因`, `申请${label}`, {
+    confirmButtonText: '提交',
+    cancelButtonText: '取消',
+    inputPattern: /.+/,
+    inputErrorMessage: '请填写原因'
+  })
+  await afterSaleApi.requestAfterSale(order.id, {
+    type,
+    reason: value,
+    amount: order.totalAmount
+  })
+  ElMessage.success(`${label}申请已提交`)
 }
 
 onMounted(() => {

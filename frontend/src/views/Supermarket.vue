@@ -4,9 +4,10 @@
       <h2>校园超市</h2>
       <div class="header-actions">
         <el-input v-model="keyword" placeholder="搜索商品" prefix-icon="Search" style="width: 200px; margin-right: 10px" @input="loadProducts" />
-        <el-button type="primary" :icon="ShoppingCart" @click="cartDrawerVisible = true">
+        <el-button v-if="!isGuest" type="primary" :icon="ShoppingCart" @click="cartDrawerVisible = true">
           购物车 ({{ cartCount }})
         </el-button>
+        <el-tag v-else type="info">游客仅可浏览</el-tag>
       </div>
     </div>
 
@@ -46,11 +47,15 @@
               <div class="product-info">
                 <h3>{{ product.name }}</h3>
                 <p class="spec">{{ product.spec }}</p>
+                <p v-if="merchantContact(product)" class="merchant-contact">
+                  商家联系方式：{{ merchantContact(product) }}
+                </p>
                 <div class="product-footer">
                   <span class="price">¥{{ Number(product.price).toFixed(2) }}</span>
                   <span class="stock">库存: {{ product.stock }}</span>
                 </div>
                 <el-button 
+                  v-if="!isGuest"
                   type="primary" 
                   size="small" 
                   style="width: 100%; margin-top: 10px"
@@ -130,6 +135,7 @@ import { ElMessage } from 'element-plus'
 import { ShoppingCart, Grid, Delete } from '@element-plus/icons-vue'
 import { supermarketApi } from '@/api'
 import { useRouter } from 'vue-router'
+import { useUserStore } from '@/stores/user'
 import { startPaymentByOrderId } from '@/utils/paymentFlow'
 
 const categories = ref([])
@@ -141,6 +147,8 @@ const cartDrawerVisible = ref(false)
 const checkoutDrawerVisible = ref(false)
 const submitting = ref(false)
 const router = useRouter()
+const userStore = useUserStore()
+const isGuest = computed(() => !userStore.token)
 const checkoutForm = ref({
   address: '',
   phone: '',
@@ -188,6 +196,10 @@ const handleCategorySelect = (index) => {
 }
 
 const addToCart = async (product) => {
+  if (isGuest.value) {
+    ElMessage.warning('游客只能浏览商品，请登录后加入购物车')
+    return
+  }
   try {
     await supermarketApi.addToCart({
       productId: product.id,
@@ -201,6 +213,10 @@ const addToCart = async (product) => {
 }
 
 const loadCart = async () => {
+  if (isGuest.value) {
+    cart.value = null
+    return
+  }
   try {
     const res = await supermarketApi.getCart()
     cart.value = res.data
@@ -208,6 +224,8 @@ const loadCart = async () => {
     console.error('加载购物车失败:', error)
   }
 }
+
+const merchantContact = (item) => item.merchantPhone || item.merchantEmail || item.merchantAddress || ''
 
 const updateCartItem = async (item, delta) => {
   const newQuantity = item.quantity + delta
@@ -282,7 +300,9 @@ const submitOrder = async () => {
 onMounted(() => {
   loadCategories()
   loadProducts()
-  loadCart()
+  if (!isGuest.value) {
+    loadCart()
+  }
 })
 </script>
 
@@ -381,6 +401,13 @@ onMounted(() => {
   margin: 0 0 10px;
   color: #999;
   font-size: 14px;
+}
+
+.merchant-contact {
+  margin: 0 0 10px;
+  color: #4f7cff;
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .product-footer {

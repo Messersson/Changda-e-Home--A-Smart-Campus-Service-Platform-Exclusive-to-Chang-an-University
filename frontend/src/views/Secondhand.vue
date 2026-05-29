@@ -2,7 +2,8 @@
   <div class="secondhand-page">
     <div class="page-header">
       <h2>二手交易</h2>
-      <el-button type="primary" @click="publishDialogVisible = true">发布商品</el-button>
+      <el-button v-if="!isGuest" type="primary" @click="publishDialogVisible = true">发布商品</el-button>
+      <el-tag v-else type="info">游客仅可浏览和查找</el-tag>
     </div>
 
     <el-card class="filter-card">
@@ -38,7 +39,7 @@
             <el-tag size="small">{{ item.category }}</el-tag>
             <div class="item-footer">
               <span class="price">¥{{ Number(item.price).toFixed(2) }}</span>
-              <el-button type="danger" :icon="Star" circle @click.stop="toggleFavorite(item)" />
+              <el-button v-if="!isGuest" type="danger" :icon="Star" circle @click.stop="toggleFavorite(item)" />
             </div>
           </div>
         </el-card>
@@ -62,8 +63,10 @@
         <div class="detail-content">
           <h4>商品描述</h4>
           <p>{{ selectedItem.description }}</p>
+          <p v-if="selectedItem.sellerName"><strong>发布者：</strong>{{ selectedItem.sellerName }}</p>
+          <p v-if="selectedItem.sellerEmail"><strong>联系方式：</strong>{{ selectedItem.sellerEmail }}</p>
         </div>
-        <div class="detail-actions">
+        <div v-if="!isGuest" class="detail-actions">
           <el-button style="width: 100%" @click="toggleFavorite(selectedItem)">
             {{ isFavorited(selectedItem.id) ? '取消收藏' : '收藏商品' }}
           </el-button>
@@ -149,6 +152,7 @@ import { ElMessage } from 'element-plus'
 import { Star } from '@element-plus/icons-vue'
 import { secondhandApi } from '@/api'
 import { useRouter } from 'vue-router'
+import { useUserStore } from '@/stores/user'
 import { startPaymentByOrderId } from '@/utils/paymentFlow'
 import ImageDropInput from '@/components/ImageDropInput.vue'
 
@@ -161,6 +165,8 @@ const filterForm = ref({
 const detailDrawerVisible = ref(false)
 const selectedItem = ref(null)
 const router = useRouter()
+const userStore = useUserStore()
+const isGuest = computed(() => !userStore.token)
 const publishDialogVisible = ref(false)
 const publishing = ref(false)
 const publishFormRef = ref(null)
@@ -234,6 +240,10 @@ const showDetail = (item) => {
 }
 
 const showOrderDialog = (item) => {
+  if (isGuest.value) {
+    ElMessage.warning('游客只能浏览商品，请登录后下单')
+    return
+  }
   selectedItem.value = item
   resetOrderForm()
   orderDialogVisible.value = true
@@ -242,6 +252,10 @@ const showOrderDialog = (item) => {
 const isFavorited = (itemId) => favorites.value.some((item) => item.id === itemId)
 
 const toggleFavorite = async (item) => {
+  if (isGuest.value) {
+    ElMessage.warning('游客只能浏览商品，请登录后收藏')
+    return
+  }
   try {
     if (isFavorited(item.id)) {
       await secondhandApi.unfavoriteItem(item.id)
@@ -311,7 +325,9 @@ const submitPublish = async () => {
 
 onMounted(() => {
   loadItems()
-  loadFavorites()
+  if (!isGuest.value) {
+    loadFavorites()
+  }
 })
 </script>
 

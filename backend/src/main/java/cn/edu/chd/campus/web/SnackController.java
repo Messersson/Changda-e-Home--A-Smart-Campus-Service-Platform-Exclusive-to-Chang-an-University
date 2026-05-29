@@ -4,6 +4,7 @@ import cn.edu.chd.campus.common.ApiResponse;
 import cn.edu.chd.campus.common.Maps;
 import cn.edu.chd.campus.security.SecuritySupport;
 import cn.edu.chd.campus.service.CatalogService;
+import cn.edu.chd.campus.service.GuestAccessService;
 import cn.edu.chd.campus.service.OrderService;
 import java.util.List;
 import java.util.Map;
@@ -22,25 +23,30 @@ import org.springframework.web.bind.annotation.RestController;
 public class SnackController {
 
   private final CatalogService catalogService;
+  private final GuestAccessService guestAccessService;
   private final OrderService orderService;
 
-  public SnackController(CatalogService catalogService, OrderService orderService) {
+  public SnackController(CatalogService catalogService, GuestAccessService guestAccessService, OrderService orderService) {
     this.catalogService = catalogService;
+    this.guestAccessService = guestAccessService;
     this.orderService = orderService;
   }
 
   @GetMapping("/merchants")
-  public ApiResponse<List<String>> merchants() {
+  public ApiResponse<List<String>> merchants(Authentication authentication) {
+    guestAccessService.requireEnabledForGuest(authentication);
     return ApiResponse.ok(catalogService.snackMerchants());
   }
 
   @GetMapping("/list")
-  public ApiResponse<List<Map<String, Object>>> list(@RequestParam(required = false) String merchant) {
+  public ApiResponse<List<Map<String, Object>>> list(Authentication authentication, @RequestParam(required = false) String merchant) {
+    guestAccessService.requireEnabledForGuest(authentication);
     return ApiResponse.ok(catalogService.snacks(merchant));
   }
 
   @GetMapping("/detail/{id}")
-  public ApiResponse<Map<String, Object>> detail(@PathVariable Long id) {
+  public ApiResponse<Map<String, Object>> detail(Authentication authentication, @PathVariable Long id) {
+    guestAccessService.requireEnabledForGuest(authentication);
     return ApiResponse.ok(catalogService.snack(id));
   }
 

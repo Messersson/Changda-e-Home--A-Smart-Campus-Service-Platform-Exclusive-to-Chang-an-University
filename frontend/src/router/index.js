@@ -9,9 +9,21 @@ const routes = [
     meta: { requiresAuth: false, keepAlive: false }
   },
   {
+    path: '/merchant-login',
+    name: 'MerchantLogin',
+    component: () => import('@/views/MerchantLogin.vue'),
+    meta: { requiresAuth: false, keepAlive: false }
+  },
+  {
     path: '/register',
     name: 'Register',
     component: () => import('@/views/Register.vue'),
+    meta: { requiresAuth: false, keepAlive: false }
+  },
+  {
+    path: '/merchant-register',
+    name: 'MerchantRegister',
+    component: () => import('@/views/MerchantRegister.vue'),
     meta: { requiresAuth: false, keepAlive: false }
   },
   {
@@ -28,7 +40,7 @@ const routes = [
     path: '/',
     name: 'Home',
     component: () => import('@/views/Home.vue'),
-    meta: { requiresAuth: true, keepAlive: false },
+    meta: { requiresAuth: false, keepAlive: false },
     redirect: '/snack',
     children: [
       {
@@ -47,7 +59,7 @@ const routes = [
         path: 'tutor',
         name: 'Tutor',
         component: () => import('@/views/Tutor.vue'),
-        meta: { title: '家教板块', keepAlive: true }
+        meta: { title: '家教板块', requiresAuth: true, keepAlive: true }
       },
       {
         path: 'secondhand',
@@ -59,7 +71,7 @@ const routes = [
         path: 'driving-school',
         name: 'DrivingSchool',
         component: () => import('@/views/DrivingSchool.vue'),
-        meta: { title: '驾校板块', keepAlive: true }
+        meta: { title: '驾校板块', requiresAuth: true, keepAlive: true }
       },
       {
         path: 'study-material',
@@ -71,13 +83,13 @@ const routes = [
         path: 'forum',
         name: 'Forum',
         component: () => import('@/views/Forum.vue'),
-        meta: { title: '校园论坛', keepAlive: true }
+        meta: { title: '校园论坛', keepAlive: true, merchantAllowed: true }
       },
       {
         path: 'orders',
         name: 'Orders',
         component: () => import('@/views/Orders.vue'),
-        meta: { title: '我的订单', keepAlive: true }
+        meta: { title: '我的订单', requiresAuth: true, keepAlive: true }
       }
     ]
   },
@@ -99,6 +111,12 @@ const routes = [
         name: 'AdminUsers',
         component: () => import('@/views/admin/Users.vue'),
         meta: { title: '用户管理', keepAlive: true }
+      },
+      {
+        path: 'merchants',
+        name: 'AdminMerchants',
+        component: () => import('@/views/admin/Merchants.vue'),
+        meta: { title: '商家管理', keepAlive: true }
       },
       {
         path: 'snacks',
@@ -149,6 +167,45 @@ const routes = [
         meta: { title: '驾校管理', keepAlive: true }
       }
     ]
+  },
+  {
+    path: '/merchant',
+    name: 'Merchant',
+    component: () => import('@/views/merchant/Index.vue'),
+    meta: { requiresAuth: true, requiresMerchant: true, keepAlive: false },
+    redirect: '/merchant/dashboard',
+    children: [
+      {
+        path: 'dashboard',
+        name: 'MerchantDashboard',
+        component: () => import('@/views/merchant/Dashboard.vue'),
+        meta: { title: '商家概览', keepAlive: true }
+      },
+      {
+        path: 'snacks',
+        name: 'MerchantSnacks',
+        component: () => import('@/views/merchant/Snacks.vue'),
+        meta: { title: '小吃商品', keepAlive: true }
+      },
+      {
+        path: 'products',
+        name: 'MerchantProducts',
+        component: () => import('@/views/merchant/Products.vue'),
+        meta: { title: '超市商品', keepAlive: true }
+      },
+      {
+        path: 'orders',
+        name: 'MerchantOrders',
+        component: () => import('@/views/merchant/Orders.vue'),
+        meta: { title: '商家订单', keepAlive: true }
+      },
+      {
+        path: 'after-sales',
+        name: 'MerchantAfterSales',
+        component: () => import('@/views/merchant/AfterSales.vue'),
+        meta: { title: '退款退货', keepAlive: true }
+      }
+    ]
   }
 ]
 
@@ -160,24 +217,19 @@ const router = createRouter({
 router.beforeEach((to, from, next) => {
   const userStore = useUserStore()
   const token = userStore.token
-  const isInitialNavigation = from.matched.length === 0
-  const startupLoginShown = sessionStorage.getItem('startup-login-shown') === '1'
-
-  if (isInitialNavigation && !startupLoginShown) {
-    sessionStorage.setItem('startup-login-shown', '1')
-
-    if (to.path !== '/login' && to.path !== '/register') {
-      next('/login')
-      return
-    }
-  }
+  const role = userStore.user?.role
+  const publicAuthPaths = ['/login', '/merchant-login', '/register', '/merchant-register']
 
   if (to.meta.requiresAuth && !token) {
     next('/login')
-  } else if (to.meta.requiresAdmin && userStore.user?.role !== 'admin') {
+  } else if (to.meta.requiresAdmin && role !== 'admin') {
+    next(role === 'merchant' ? '/merchant/dashboard' : '/')
+  } else if (to.meta.requiresMerchant && role !== 'merchant' && role !== 'admin') {
     next('/')
-  } else if (to.path === '/register' && token) {
-    next('/')
+  } else if (role === 'merchant' && to.matched.some((item) => item.name === 'Home') && !to.meta.merchantAllowed) {
+    next('/forum')
+  } else if (publicAuthPaths.includes(to.path) && token) {
+    next(role === 'admin' ? '/admin/dashboard' : role === 'merchant' ? '/merchant/dashboard' : '/')
   } else {
     next()
   }

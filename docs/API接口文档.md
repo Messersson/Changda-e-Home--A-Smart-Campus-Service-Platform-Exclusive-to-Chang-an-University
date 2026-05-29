@@ -19,6 +19,12 @@ Swagger 地址：
 http://127.0.0.1:3000/swagger-ui.html
 ```
 
+## 公开设置
+
+- `GET /api/public/guest-access`
+
+该接口用于前端判断总管理员是否开启访客浏览功能。
+
 ## 认证
 
 - `POST /api/auth/send-verification`
@@ -122,7 +128,12 @@ http://127.0.0.1:3000/swagger-ui.html
 
 - `GET /api/admin/stats`
 - `GET /api/admin/users`
+- `POST /api/admin/users`
+- `PUT /api/admin/users/{id}`
 - `PUT /api/admin/users/{id}/status`
+- `DELETE /api/admin/users/{id}`
+- `GET /api/admin/settings/guest-access`
+- `PUT /api/admin/settings/guest-access`
 - `GET /api/admin/snacks`
 - `POST /api/admin/snacks`
 - `PUT /api/admin/snacks/{id}`

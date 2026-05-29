@@ -23,20 +23,22 @@
           <el-dropdown @command="handleCommand">
             <div class="user-info glass-panel">
               <el-avatar :size="38" class="user-avatar">
-                {{ (userStore.user?.name || 'U').slice(0, 1) }}
+                {{ (userStore.user?.name || '游').slice(0, 1) }}
               </el-avatar>
               <div class="user-copy">
-                <strong>{{ userStore.user?.name || '校园用户' }}</strong>
-                <span>{{ userStore.user?.role === 'admin' ? '管理员' : '同学' }}</span>
+                <strong>{{ userStore.user?.name || '访客浏览' }}</strong>
+                <span>{{ roleLabel }}</span>
               </div>
               <el-icon><ArrowDown /></el-icon>
             </div>
 
             <template #dropdown>
               <el-dropdown-menu>
-                <el-dropdown-item command="profile">个人信息</el-dropdown-item>
+                <el-dropdown-item v-if="isGuest" command="login">登录平台</el-dropdown-item>
+                <el-dropdown-item v-if="!isGuest" command="profile">个人信息</el-dropdown-item>
                 <el-dropdown-item v-if="userStore.user?.role === 'admin'" command="admin">后台管理</el-dropdown-item>
-                <el-dropdown-item command="logout" divided>退出登录</el-dropdown-item>
+                <el-dropdown-item v-if="isMerchant" command="merchant">商家后台</el-dropdown-item>
+                <el-dropdown-item v-if="!isGuest" command="logout" divided>退出登录</el-dropdown-item>
               </el-dropdown-menu>
             </template>
           </el-dropdown>
@@ -51,27 +53,27 @@
           </div>
 
           <el-menu :default-active="activeMenu" class="home-menu" router @select="handleMenuSelect">
-            <el-menu-item index="/snack">
+            <el-menu-item v-if="!isMerchant" index="/snack">
               <el-icon><Bowl /></el-icon>
               <span>东门小吃摊</span>
             </el-menu-item>
-            <el-menu-item index="/supermarket">
+            <el-menu-item v-if="!isMerchant" index="/supermarket">
               <el-icon><ShoppingCart /></el-icon>
               <span>校园超市</span>
             </el-menu-item>
-            <el-menu-item index="/tutor">
+            <el-menu-item v-if="!isMerchant && !isGuest" index="/tutor">
               <el-icon><Reading /></el-icon>
               <span>家教板块</span>
             </el-menu-item>
-            <el-menu-item index="/secondhand">
+            <el-menu-item v-if="!isMerchant" index="/secondhand">
               <el-icon><Goods /></el-icon>
               <span>二手交易</span>
             </el-menu-item>
-            <el-menu-item index="/driving-school">
+            <el-menu-item v-if="!isMerchant && !isGuest" index="/driving-school">
               <el-icon><Van /></el-icon>
               <span>驾校板块</span>
             </el-menu-item>
-            <el-menu-item index="/study-material">
+            <el-menu-item v-if="!isMerchant" index="/study-material">
               <el-icon><Document /></el-icon>
               <span>学习资料</span>
             </el-menu-item>
@@ -79,7 +81,7 @@
               <el-icon><ChatDotRound /></el-icon>
               <span>校园论坛</span>
             </el-menu-item>
-            <el-menu-item index="/orders">
+            <el-menu-item v-if="!isMerchant && !isGuest" index="/orders">
               <el-icon><Tickets /></el-icon>
               <span>我的订单</span>
             </el-menu-item>
@@ -87,7 +89,7 @@
 
           <div class="aside-footer glass-panel">
             <strong>今日建议</strong>
-            <p>切换板块会保留已访问页面状态，查资料、看论坛和下单切换会更连贯。</p>
+            <p>{{ isGuest ? '访客可浏览和查找公开信息，登录后可下单、发布、收藏和评论。' : '切换板块会保留已访问页面状态，查资料、看论坛和下单切换会更连贯。' }}</p>
           </div>
         </el-aside>
 
@@ -147,6 +149,14 @@ const homeShellStyle = {
 }
 
 const activeMenu = computed(() => route.path)
+const isGuest = computed(() => !userStore.token)
+const isMerchant = computed(() => userStore.user?.role === 'merchant')
+const roleLabel = computed(() => {
+  if (isGuest.value) return '游客只读'
+  if (userStore.user?.role === 'admin') return '管理员'
+  if (userStore.user?.role === 'merchant') return '商家'
+  return '同学'
+})
 
 const handleMenuSelect = (index) => {
   if (index && index !== route.path) {
@@ -159,8 +169,14 @@ const handleCommand = async (command) => {
     case 'profile':
       profileDialogVisible.value = true
       break
+    case 'login':
+      router.push('/login')
+      break
     case 'admin':
       router.push('/admin')
+      break
+    case 'merchant':
+      router.push('/merchant/dashboard')
       break
     case 'logout':
       try {

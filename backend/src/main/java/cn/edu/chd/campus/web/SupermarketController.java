@@ -4,6 +4,7 @@ import cn.edu.chd.campus.common.ApiResponse;
 import cn.edu.chd.campus.common.Maps;
 import cn.edu.chd.campus.security.SecuritySupport;
 import cn.edu.chd.campus.service.CatalogService;
+import cn.edu.chd.campus.service.GuestAccessService;
 import cn.edu.chd.campus.service.OrderService;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -24,25 +25,30 @@ import org.springframework.web.bind.annotation.RestController;
 public class SupermarketController {
 
   private final CatalogService catalogService;
+  private final GuestAccessService guestAccessService;
   private final OrderService orderService;
 
-  public SupermarketController(CatalogService catalogService, OrderService orderService) {
+  public SupermarketController(CatalogService catalogService, GuestAccessService guestAccessService, OrderService orderService) {
     this.catalogService = catalogService;
+    this.guestAccessService = guestAccessService;
     this.orderService = orderService;
   }
 
   @GetMapping("/categories")
-  public ApiResponse<List<Map<String, Object>>> categories() {
+  public ApiResponse<List<Map<String, Object>>> categories(Authentication authentication) {
+    guestAccessService.requireEnabledForGuest(authentication);
     return ApiResponse.ok(catalogService.supermarketCategories());
   }
 
   @GetMapping("/products")
-  public ApiResponse<List<Map<String, Object>>> products(@RequestParam Map<String, String> query) {
+  public ApiResponse<List<Map<String, Object>>> products(Authentication authentication, @RequestParam Map<String, String> query) {
+    guestAccessService.requireEnabledForGuest(authentication);
     return ApiResponse.ok(catalogService.supermarketProducts(new LinkedHashMap<>(query)));
   }
 
   @GetMapping("/product/{id}")
-  public ApiResponse<Map<String, Object>> product(@PathVariable Long id) {
+  public ApiResponse<Map<String, Object>> product(Authentication authentication, @PathVariable Long id) {
+    guestAccessService.requireEnabledForGuest(authentication);
     return ApiResponse.ok(catalogService.supermarketProduct(id));
   }
 

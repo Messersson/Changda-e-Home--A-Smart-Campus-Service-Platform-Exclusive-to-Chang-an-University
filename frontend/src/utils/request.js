@@ -166,7 +166,7 @@ request.interceptors.response.use(
           console.warn('清理登录态失败:', logoutError)
         }
       } else if (status === 403) {
-        ElMessage.error('没有操作权限')
+        ElMessage.error(error.response.data?.message || '没有操作权限')
       } else if (status === 404) {
         ElMessage.error('请求资源不存在')
       } else if (status === 408) {

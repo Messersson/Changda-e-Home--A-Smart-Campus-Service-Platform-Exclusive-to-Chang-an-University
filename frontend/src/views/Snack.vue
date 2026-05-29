@@ -15,10 +15,12 @@
           <div class="snack-info">
             <h3>{{ snack.name }}</h3>
             <p class="merchant">{{ snack.merchant }}</p>
+            <p v-if="merchantContact(snack)" class="contact">联系方式：{{ merchantContact(snack) }}</p>
             <p class="description">{{ snack.description }}</p>
             <div class="snack-footer">
             <span class="price">¥{{ Number(snack.price).toFixed(2) }}</span>
-            <el-button type="primary" size="small" @click.stop="addToOrder(snack)">点单</el-button>
+            <el-button v-if="!isGuest" type="primary" size="small" @click.stop="addToOrder(snack)">点单</el-button>
+            <el-tag v-else size="small" type="info">游客仅浏览</el-tag>
           </div>
           </div>
         </el-card>
@@ -56,9 +58,13 @@
         <el-image :src="selectedSnack.image" fit="cover" style="width: 100%; height: 200px" />
         <h2>{{ selectedSnack.name }}</h2>
         <p class="merchant">商家：{{ selectedSnack.merchant }}</p>
+        <p v-if="selectedSnack.merchantContactName">联系人：{{ selectedSnack.merchantContactName }}</p>
+        <p v-if="selectedSnack.merchantPhone">电话：{{ selectedSnack.merchantPhone }}</p>
+        <p v-if="selectedSnack.merchantEmail">邮箱：{{ selectedSnack.merchantEmail }}</p>
+        <p v-if="selectedSnack.merchantAddress">地址：{{ selectedSnack.merchantAddress }}</p>
         <p class="price">价格：¥{{ Number(selectedSnack.price).toFixed(2) }}</p>
         <p class="description">描述：{{ selectedSnack.description }}</p>
-        <el-button type="primary" style="width: 100%; margin-top: 20px" @click="addToOrder(selectedSnack)">点单</el-button>
+        <el-button v-if="!isGuest" type="primary" style="width: 100%; margin-top: 20px" @click="addToOrder(selectedSnack)">点单</el-button>
       </div>
     </el-drawer>
   </div>
@@ -69,6 +75,7 @@ import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { snackApi } from '@/api'
 import { useRouter } from 'vue-router'
+import { useUserStore } from '@/stores/user'
 import { startPaymentByOrderId } from '@/utils/paymentFlow'
 
 const merchants = ref([])
@@ -81,6 +88,8 @@ const remark = ref('')
 const submitting = ref(false)
 const selectedSnack = ref(null)
 const router = useRouter()
+const userStore = useUserStore()
+const isGuest = computed(() => !userStore.token)
 
 const totalAmount = computed(() => {
   return orderItems.value.reduce((sum, item) => sum + item.subtotal, 0)
@@ -110,6 +119,10 @@ const showDetail = (snack) => {
 }
 
 const addToOrder = (snack) => {
+  if (isGuest.value) {
+    ElMessage.warning('游客只能浏览商品，请登录后下单')
+    return
+  }
   const price = Number(snack.price)
   const existingItem = orderItems.value.find(item => item.snackId === snack.id)
   if (existingItem) {
@@ -127,6 +140,8 @@ const addToOrder = (snack) => {
   orderDrawerVisible.value = true
   ElMessage.success('已加入订单')
 }
+
+const merchantContact = (item) => item.merchantPhone || item.merchantEmail || item.merchantAddress || ''
 
 const updateQuantity = (index, delta) => {
   const item = orderItems.value[index]
@@ -231,6 +246,12 @@ onMounted(() => {
   margin: 0 0 8px;
   color: #999;
   font-size: 14px;
+}
+
+.snack-info .contact {
+  margin: 0 0 8px;
+  color: #4f7cff;
+  font-size: 13px;
 }
 
 .snack-info .description {

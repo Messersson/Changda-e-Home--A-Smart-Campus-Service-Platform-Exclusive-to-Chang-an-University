@@ -2,7 +2,8 @@
   <div class="study-material-page">
     <div class="page-header">
       <h2>学习资料</h2>
-      <el-button type="primary" @click="uploadDialogVisible = true">上传资料</el-button>
+      <el-button v-if="!isGuest" type="primary" @click="uploadDialogVisible = true">上传资料</el-button>
+      <el-tag v-else type="info">游客仅可浏览和查找</el-tag>
     </div>
 
     <el-card class="filter-card">
@@ -46,7 +47,7 @@
       <el-table-column prop="uploaderName" label="上传者" width="100" />
       <el-table-column label="操作" width="150" fixed="right">
         <template #default="{ row }">
-          <el-button type="primary" size="small" @click="downloadMaterial(row)">下载</el-button>
+          <el-button v-if="!isGuest" type="primary" size="small" @click="downloadMaterial(row)">下载</el-button>
           <el-button size="small" @click="showDetail(row)">详情</el-button>
         </template>
       </el-table-column>
@@ -69,7 +70,7 @@
           <p><strong>上传者：</strong>{{ selectedMaterial.uploaderName }}</p>
           <p><strong>描述：</strong>{{ selectedMaterial.description }}</p>
         </div>
-        <el-button type="primary" style="width: 100%; margin-top: 20px" @click="downloadMaterial(selectedMaterial)">
+        <el-button v-if="!isGuest" type="primary" style="width: 100%; margin-top: 20px" @click="downloadMaterial(selectedMaterial)">
           下载资料
         </el-button>
       </div>
@@ -123,9 +124,10 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { studyMaterialApi } from '@/api'
+import { useUserStore } from '@/stores/user'
 
 const materials = ref([])
 const filterForm = ref({
@@ -138,6 +140,8 @@ const selectedMaterial = ref(null)
 const uploadDialogVisible = ref(false)
 const uploading = ref(false)
 const uploadFormRef = ref(null)
+const userStore = useUserStore()
+const isGuest = computed(() => !userStore.token)
 const uploadForm = ref({
   title: '',
   major: '',
@@ -178,6 +182,10 @@ const showDetail = (material) => {
 }
 
 const downloadMaterial = async (material) => {
+  if (isGuest.value) {
+    ElMessage.warning('游客只能浏览资料，请登录后下载')
+    return
+  }
   try {
     await studyMaterialApi.downloadMaterial(material.id)
     ElMessage.success('下载成功')
@@ -188,6 +196,10 @@ const downloadMaterial = async (material) => {
 }
 
 const submitUpload = async () => {
+  if (isGuest.value) {
+    ElMessage.warning('游客不能上传资料，请先登录')
+    return
+  }
   if (!uploadFormRef.value) return
   await uploadFormRef.value.validate(async (valid) => {
     if (valid) {

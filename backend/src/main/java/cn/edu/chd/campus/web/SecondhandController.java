@@ -4,6 +4,7 @@ import cn.edu.chd.campus.common.ApiResponse;
 import cn.edu.chd.campus.common.Maps;
 import cn.edu.chd.campus.security.SecuritySupport;
 import cn.edu.chd.campus.service.CatalogService;
+import cn.edu.chd.campus.service.GuestAccessService;
 import cn.edu.chd.campus.service.OrderService;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -24,20 +25,24 @@ import org.springframework.web.bind.annotation.RestController;
 public class SecondhandController {
 
   private final CatalogService catalogService;
+  private final GuestAccessService guestAccessService;
   private final OrderService orderService;
 
-  public SecondhandController(CatalogService catalogService, OrderService orderService) {
+  public SecondhandController(CatalogService catalogService, GuestAccessService guestAccessService, OrderService orderService) {
     this.catalogService = catalogService;
+    this.guestAccessService = guestAccessService;
     this.orderService = orderService;
   }
 
   @GetMapping("/list")
-  public ApiResponse<List<Map<String, Object>>> list(@RequestParam Map<String, String> query) {
+  public ApiResponse<List<Map<String, Object>>> list(Authentication authentication, @RequestParam Map<String, String> query) {
+    guestAccessService.requireEnabledForGuest(authentication);
     return ApiResponse.ok(catalogService.secondhandItems(new LinkedHashMap<>(query)));
   }
 
   @GetMapping("/detail/{id}")
-  public ApiResponse<Map<String, Object>> detail(@PathVariable Long id) {
+  public ApiResponse<Map<String, Object>> detail(Authentication authentication, @PathVariable Long id) {
+    guestAccessService.requireEnabledForGuest(authentication);
     return ApiResponse.ok(catalogService.secondhandItem(id));
   }
 

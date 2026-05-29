@@ -84,9 +84,15 @@
             </el-button>
           </el-form-item>
 
+          <el-button plain size="large" class="guest-submit" :disabled="guestDisabled" @click="enterAsGuest">
+            {{ guestDisabled ? '访客浏览已关闭' : '游客浏览公开信息' }}
+          </el-button>
+
           <div class="login-footer">
             <span>还没有账号？</span>
             <router-link to="/register">立即注册</router-link>
+            <router-link to="/merchant-login">商家登录</router-link>
+            <router-link to="/merchant-register">商家入驻</router-link>
           </div>
         </el-form>
       </section>
@@ -99,7 +105,7 @@ import { onMounted, ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Lock, User, InfoFilled } from '@element-plus/icons-vue'
-import { authApi } from '@/api'
+import { authApi, publicApi } from '@/api'
 import { useUserStore } from '@/stores/user'
 import campusLoginBg from '@/assets/bg-campus-login.svg'
 
@@ -108,6 +114,7 @@ const userStore = useUserStore()
 
 const loginFormRef = ref(null)
 const loading = ref(false)
+const guestDisabled = ref(false)
 const loginPageStyle = {
   backgroundImage: `linear-gradient(135deg, rgba(14, 22, 48, 0.78), rgba(28, 37, 96, 0.64), rgba(53, 36, 104, 0.68)), url(${campusLoginBg})`
 }
@@ -128,7 +135,25 @@ const loginRules = {
 
 onMounted(() => {
   userStore.logout()
+  loadGuestAccess()
 })
+
+const loadGuestAccess = async () => {
+  try {
+    const res = await publicApi.getGuestAccess()
+    guestDisabled.value = res.data?.guestAccessEnabled === false
+  } catch (error) {
+    console.error('读取访客设置失败:', error)
+  }
+}
+
+const enterAsGuest = () => {
+  if (guestDisabled.value) {
+    ElMessage.warning('总管理员已关闭访客浏览功能')
+    return
+  }
+  router.push('/snack')
+}
 
 const handleLogin = async () => {
   if (!loginFormRef.value) return
@@ -141,7 +166,8 @@ const handleLogin = async () => {
         userStore.setToken(res.data.token)
         userStore.setUser(res.data.user)
         ElMessage.success('登录成功')
-        router.push(res.data.user?.role === 'admin' ? '/admin/dashboard' : '/')
+        const role = res.data.user?.role
+        router.push(role === 'admin' ? '/admin/dashboard' : role === 'merchant' ? '/merchant/dashboard' : '/')
       } catch (error) {
         console.error('登录失败:', error)
       } finally {
@@ -359,6 +385,13 @@ const handleLogin = async () => {
   font-size: 16px;
   font-weight: 700;
   letter-spacing: 0.06em;
+}
+
+.guest-submit {
+  width: 100%;
+  min-height: 48px;
+  border-radius: 18px;
+  font-weight: 700;
 }
 
 .login-footer {

@@ -4,6 +4,7 @@ import cn.edu.chd.campus.common.ApiResponse;
 import cn.edu.chd.campus.common.Maps;
 import cn.edu.chd.campus.security.SecuritySupport;
 import cn.edu.chd.campus.service.CatalogService;
+import cn.edu.chd.campus.service.GuestAccessService;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -21,23 +22,28 @@ import org.springframework.web.bind.annotation.RestController;
 public class ForumController {
 
   private final CatalogService catalogService;
+  private final GuestAccessService guestAccessService;
 
-  public ForumController(CatalogService catalogService) {
+  public ForumController(CatalogService catalogService, GuestAccessService guestAccessService) {
     this.catalogService = catalogService;
+    this.guestAccessService = guestAccessService;
   }
 
   @GetMapping("/categories")
-  public ApiResponse<List<Map<String, Object>>> categories() {
+  public ApiResponse<List<Map<String, Object>>> categories(Authentication authentication) {
+    guestAccessService.requireEnabledForGuest(authentication);
     return ApiResponse.ok(catalogService.forumCategories());
   }
 
   @GetMapping("/list")
-  public ApiResponse<List<Map<String, Object>>> list(@RequestParam Map<String, String> query) {
+  public ApiResponse<List<Map<String, Object>>> list(Authentication authentication, @RequestParam Map<String, String> query) {
+    guestAccessService.requireEnabledForGuest(authentication);
     return ApiResponse.ok(catalogService.forumPosts(new LinkedHashMap<>(query)));
   }
 
   @GetMapping("/detail/{id}")
-  public ApiResponse<Map<String, Object>> detail(@PathVariable Long id) {
+  public ApiResponse<Map<String, Object>> detail(Authentication authentication, @PathVariable Long id) {
+    guestAccessService.requireEnabledForGuest(authentication);
     return ApiResponse.ok(catalogService.forumPost(id));
   }
 

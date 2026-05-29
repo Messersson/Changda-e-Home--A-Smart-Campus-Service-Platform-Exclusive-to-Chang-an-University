@@ -2,10 +2,12 @@ package cn.edu.chd.campus.web;
 
 import cn.edu.chd.campus.common.ApiResponse;
 import cn.edu.chd.campus.common.Maps;
+import cn.edu.chd.campus.security.SecuritySupport;
 import cn.edu.chd.campus.service.AdminService;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -36,10 +38,37 @@ public class AdminController {
     return ApiResponse.ok(adminService.users(keyword));
   }
 
+  @PostMapping("/users")
+  public ApiResponse<Map<String, Object>> addUser(@RequestBody Map<String, Object> request) {
+    return ApiResponse.ok(adminService.addUser(Maps.mutable(request)), "用户添加成功");
+  }
+
+  @PutMapping("/users/{id}")
+  public ApiResponse<Map<String, Object>> updateUser(@PathVariable Long id, @RequestBody Map<String, Object> request) {
+    return ApiResponse.ok(adminService.updateUser(id, Maps.mutable(request)), "用户信息更新成功");
+  }
+
   @PutMapping("/users/{id}/status")
   public ApiResponse<Map<String, Object>> updateUserStatus(@PathVariable Long id, @RequestBody Map<String, Object> request) {
     return ApiResponse.ok(adminService.updateUserStatus(id, status(request)), "用户状态更新成功");
   }
+
+  @DeleteMapping("/users/{id}")
+  public ApiResponse<Void> deleteUser(Authentication authentication, @PathVariable Long id) {
+    adminService.deleteUser(id, SecuritySupport.user(authentication).id());
+    return ApiResponse.ok("用户删除成功");
+  }
+
+  @GetMapping("/settings/guest-access")
+  public ApiResponse<Map<String, Object>> guestAccessSetting() {
+    return ApiResponse.ok(adminService.guestAccessSetting());
+  }
+
+  @PutMapping("/settings/guest-access")
+  public ApiResponse<Map<String, Object>> updateGuestAccess(@RequestBody Map<String, Object> request) {
+    return ApiResponse.ok(adminService.updateGuestAccess(Maps.mutable(request)), "访客浏览设置已更新");
+  }
+
 
   @GetMapping("/snacks")
   public ApiResponse<List<Map<String, Object>>> snacks(@RequestParam(required = false) String status) {
@@ -208,6 +237,51 @@ public class AdminController {
   public ApiResponse<Void> updateDrivingInquiryStatus(@PathVariable Long id, @RequestBody Map<String, Object> request) {
     adminService.updateDrivingInquiryStatus(id, status(request));
     return ApiResponse.ok("咨询状态更新成功");
+  }
+
+  @GetMapping("/merchant-applications")
+  public ApiResponse<List<Map<String, Object>>> merchantApplications(@RequestParam(required = false) String status) {
+    return ApiResponse.ok(adminService.merchantApplications(status));
+  }
+
+  @PutMapping("/merchant-applications/{id}/approve")
+  public ApiResponse<Map<String, Object>> approveMerchantApplication(
+      Authentication authentication,
+      @PathVariable Long id,
+      @RequestBody Map<String, Object> request) {
+    return ApiResponse.ok(
+        adminService.approveMerchantApplication(id, SecuritySupport.user(authentication).id(), Maps.mutable(request)),
+        "Merchant application approved");
+  }
+
+  @PutMapping("/merchant-applications/{id}/reject")
+  public ApiResponse<Map<String, Object>> rejectMerchantApplication(
+      Authentication authentication,
+      @PathVariable Long id,
+      @RequestBody Map<String, Object> request) {
+    return ApiResponse.ok(
+        adminService.rejectMerchantApplication(id, SecuritySupport.user(authentication).id(), Maps.mutable(request)),
+        "Merchant application rejected");
+  }
+
+  @GetMapping("/merchants")
+  public ApiResponse<List<Map<String, Object>>> merchants(@RequestParam(required = false) String status) {
+    return ApiResponse.ok(adminService.merchants(status));
+  }
+
+  @PutMapping("/merchants/{id}/status")
+  public ApiResponse<Map<String, Object>> updateMerchantStatus(@PathVariable Long id, @RequestBody Map<String, Object> request) {
+    return ApiResponse.ok(adminService.updateMerchantStatus(id, status(request)), "Merchant status updated");
+  }
+
+  @GetMapping("/after-sales")
+  public ApiResponse<List<Map<String, Object>>> afterSales(@RequestParam(required = false) String status) {
+    return ApiResponse.ok(adminService.afterSales(status));
+  }
+
+  @PutMapping("/after-sales/{id}/decision")
+  public ApiResponse<Map<String, Object>> decideAfterSale(@PathVariable Long id, @RequestBody Map<String, Object> request) {
+    return ApiResponse.ok(adminService.decideAfterSale(id, Maps.mutable(request)), "After-sales decision updated");
   }
 
   private String status(Map<String, Object> request) {
