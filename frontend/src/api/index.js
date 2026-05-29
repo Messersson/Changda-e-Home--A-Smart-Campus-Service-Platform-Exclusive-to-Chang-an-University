@@ -1,9 +1,9 @@
 import request from '@/utils/request'
 
 export const authApi = {
-  sendVerification: (data) => request.post('/auth/send-verification', data),
-  register: (data) => request.post('/auth/register', data),
-  login: (data) => request.post('/auth/login', data),
+  sendVerification: (data) => request.post('/auth/send-verification', data, { skipAuth: true }),
+  register: (data) => request.post('/auth/register', data, { skipAuth: true }),
+  login: (data) => request.post('/auth/login', data, { skipAuth: true, skipDedup: true }),
   getUserInfo: () => request.get('/auth/me'),
   updateProfile: (data) => request.put('/auth/me', data),
   updatePassword: (data) => request.put('/auth/password', data),

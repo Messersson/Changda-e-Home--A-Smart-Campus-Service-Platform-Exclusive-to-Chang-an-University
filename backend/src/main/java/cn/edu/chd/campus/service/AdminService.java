@@ -26,7 +26,8 @@ public class AdminService {
   public Map<String, Object> stats() {
     Map<String, Object> stats = new LinkedHashMap<>();
     stats.put("userCount", repository.count("users", Map.of()));
-    stats.put("orderCount", repository.count("orders", Map.of()));
+    long orderCount = repository.count("orders", Map.of());
+    stats.put("orderCount", orderCount);
     stats.put("snackCount", repository.count("snacks", Map.of()));
     stats.put("supermarketProductCount", repository.count("supermarket_products", Map.of()));
     stats.put("tutorCount", repository.count("tutors", Map.of()));
@@ -34,11 +35,65 @@ public class AdminService {
     stats.put("studyMaterialCount", repository.count("study_materials", Map.of()));
     stats.put("forumPostCount", repository.count("forum_posts", Map.of()));
     stats.put("drivingSchoolCount", repository.count("driving_schools", Map.of()));
+    stats.put("drivingInquiryCount", repository.count("driving_inquiries", Map.of()));
+    putOrderTypeCounts(stats);
+    putOrderStatusCounts(stats);
     repository.queryOne(
             "SELECT COALESCE(SUM(total_amount), 0) AS total_revenue FROM orders WHERE payment_status = 'paid'",
             Map.of())
         .ifPresent(row -> stats.put("totalRevenue", Maps.decimalValue(row.get("total_revenue"))));
+    if (!stats.containsKey("totalRevenue")) {
+      stats.put("totalRevenue", 0);
+    }
     return stats;
+  }
+
+  private void putOrderTypeCounts(Map<String, Object> stats) {
+    stats.put("snackOrderCount", 0L);
+    stats.put("supermarketOrderCount", 0L);
+    stats.put("tutorOrderCount", 0L);
+    stats.put("secondhandOrderCount", 0L);
+    stats.put("drivingSchoolOrderCount", 0L);
+
+    List<Map<String, Object>> rows = repository.query(
+        "SELECT type, COUNT(*) AS order_count FROM orders GROUP BY type",
+        Map.of());
+    for (Map<String, Object> row : rows) {
+      long count = Maps.longValue(row.get("order_count"));
+      switch (Maps.stringValue(row.get("type"), "")) {
+        case "snack" -> stats.put("snackOrderCount", count);
+        case "supermarket" -> stats.put("supermarketOrderCount", count);
+        case "tutor" -> stats.put("tutorOrderCount", count);
+        case "secondhand" -> stats.put("secondhandOrderCount", count);
+        case "driving_school" -> stats.put("drivingSchoolOrderCount", count);
+        default -> {
+        }
+      }
+    }
+  }
+
+  private void putOrderStatusCounts(Map<String, Object> stats) {
+    stats.put("pendingOrderCount", 0L);
+    stats.put("processingOrderCount", 0L);
+    stats.put("completedOrderCount", 0L);
+    stats.put("cancelledOrderCount", 0L);
+    stats.put("paidOrderCount", repository.count("orders", Map.of("payment_status", "paid")));
+    stats.put("unpaidOrderCount", repository.count("orders", Map.of("payment_status", "unpaid")));
+
+    List<Map<String, Object>> rows = repository.query(
+        "SELECT status, COUNT(*) AS order_count FROM orders GROUP BY status",
+        Map.of());
+    for (Map<String, Object> row : rows) {
+      long count = Maps.longValue(row.get("order_count"));
+      switch (Maps.stringValue(row.get("status"), "")) {
+        case "pending" -> stats.put("pendingOrderCount", count);
+        case "processing" -> stats.put("processingOrderCount", count);
+        case "completed" -> stats.put("completedOrderCount", count);
+        case "cancelled" -> stats.put("cancelledOrderCount", count);
+        default -> {
+        }
+      }
+    }
   }
 
   public List<Map<String, Object>> users(String keyword) {

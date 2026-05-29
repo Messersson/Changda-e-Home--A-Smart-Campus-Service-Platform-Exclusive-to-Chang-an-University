@@ -95,7 +95,7 @@
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
+import { onMounted, ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Lock, User, InfoFilled } from '@element-plus/icons-vue'
@@ -126,6 +126,10 @@ const loginRules = {
   ]
 }
 
+onMounted(() => {
+  userStore.logout()
+})
+
 const handleLogin = async () => {
   if (!loginFormRef.value) return
 
@@ -137,7 +141,7 @@ const handleLogin = async () => {
         userStore.setToken(res.data.token)
         userStore.setUser(res.data.user)
         ElMessage.success('登录成功')
-        router.push('/')
+        router.push(res.data.user?.role === 'admin' ? '/admin/dashboard' : '/')
       } catch (error) {
         console.error('登录失败:', error)
       } finally {

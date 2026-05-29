@@ -15,6 +15,10 @@
           <strong>{{ totalOrders }}</strong>
           <span>订单总量</span>
         </div>
+        <div class="hero-pill glass-panel">
+          <strong>¥{{ formatCurrency(stats.totalRevenue) }}</strong>
+          <span>已支付收入</span>
+        </div>
       </div>
     </section>
 
@@ -67,7 +71,7 @@
           <div class="insight-list">
             <div class="insight-item">
               <strong>优先关注订单流转</strong>
-              <p>小吃与超市订单总量为 {{ totalOrders }}，建议持续跟踪处理时效。</p>
+              <p>当前待处理订单 {{ stats.pendingOrderCount }}，处理中订单 {{ stats.processingOrderCount }}，建议持续跟踪处理时效。</p>
             </div>
             <div class="insight-item">
               <strong>维持内容活跃度</strong>
@@ -91,49 +95,102 @@ import { User, Bowl, ShoppingCart, Reading, Goods, ChatDotRound, Document, Van }
 
 const stats = ref({
   userCount: 0,
-  snackOrderCount: 0,
-  supermarketOrderCount: 0,
+  orderCount: 0,
   tutorCount: 0,
   secondhandCount: 0,
   forumPostCount: 0,
   studyMaterialCount: 0,
   drivingSchoolCount: 0,
-  drivingInquiryCount: 0
+  drivingInquiryCount: 0,
+  snackOrderCount: 0,
+  supermarketOrderCount: 0,
+  tutorOrderCount: 0,
+  secondhandOrderCount: 0,
+  drivingSchoolOrderCount: 0,
+  pendingOrderCount: 0,
+  processingOrderCount: 0,
+  completedOrderCount: 0,
+  cancelledOrderCount: 0,
+  paidOrderCount: 0,
+  unpaidOrderCount: 0,
+  totalRevenue: 0
 })
 
-const totalOrders = computed(() => stats.value.snackOrderCount + stats.value.supermarketOrderCount)
+const numberValue = (value) => {
+  const parsed = Number(value ?? 0)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+const responseData = (response) => {
+  if (response && typeof response === 'object' && 'data' in response) {
+    return response.data
+  }
+
+  return response
+}
+
+const listData = (response) => {
+  const data = responseData(response)
+  return Array.isArray(data) ? data : []
+}
+
+const totalOrders = computed(() => {
+  const explicitTotal = numberValue(stats.value.orderCount)
+  if (explicitTotal > 0) {
+    return explicitTotal
+  }
+
+  return orderTypeItems.value.reduce((sum, item) => sum + item.value, 0)
+})
 
 const totalCoreAssets = computed(() => {
   return [
-    stats.value.tutorCount,
-    stats.value.secondhandCount,
-    stats.value.forumPostCount,
-    stats.value.studyMaterialCount,
-    stats.value.drivingSchoolCount,
-    stats.value.drivingInquiryCount
+    numberValue(stats.value.tutorCount),
+    numberValue(stats.value.secondhandCount),
+    numberValue(stats.value.forumPostCount),
+    numberValue(stats.value.studyMaterialCount),
+    numberValue(stats.value.drivingSchoolCount),
+    numberValue(stats.value.drivingInquiryCount)
   ].reduce((sum, current) => sum + current, 0)
 })
 
+const orderTypeItems = computed(() => [
+  { label: '小吃订单', value: numberValue(stats.value.snackOrderCount) },
+  { label: '超市订单', value: numberValue(stats.value.supermarketOrderCount) },
+  { label: '家教订单', value: numberValue(stats.value.tutorOrderCount) },
+  { label: '二手订单', value: numberValue(stats.value.secondhandOrderCount) },
+  { label: '驾校订单', value: numberValue(stats.value.drivingSchoolOrderCount) }
+])
+
 const statCards = computed(() => [
-  { key: 'users', label: '注册用户', value: stats.value.userCount, icon: User, theme: 'theme-users', tag: 'Users' },
-  { key: 'snack', label: '小吃订单', value: stats.value.snackOrderCount, icon: Bowl, theme: 'theme-snack', tag: 'Snack' },
-  { key: 'market', label: '超市订单', value: stats.value.supermarketOrderCount, icon: ShoppingCart, theme: 'theme-market', tag: 'Market' },
-  { key: 'tutor', label: '家教信息', value: stats.value.tutorCount, icon: Reading, theme: 'theme-tutor', tag: 'Tutor' },
-  { key: 'secondhand', label: '二手商品', value: stats.value.secondhandCount, icon: Goods, theme: 'theme-secondhand', tag: 'Trade' },
-  { key: 'forum', label: '论坛帖子', value: stats.value.forumPostCount, icon: ChatDotRound, theme: 'theme-forum', tag: 'Forum' },
-  { key: 'material', label: '学习资料', value: stats.value.studyMaterialCount, icon: Document, theme: 'theme-material', tag: 'Material' },
-  { key: 'driving', label: '驾校信息', value: stats.value.drivingSchoolCount ?? 0, icon: Van, theme: 'theme-driving', tag: 'Driving' },
-  { key: 'inquiry', label: '驾校咨询', value: stats.value.drivingInquiryCount ?? 0, icon: ChatDotRound, theme: 'theme-inquiry', tag: 'Inquiry' }
+  { key: 'users', label: '注册用户', value: numberValue(stats.value.userCount), icon: User, theme: 'theme-users', tag: 'Users' },
+  { key: 'orders', label: '订单总量', value: totalOrders.value, icon: ShoppingCart, theme: 'theme-market', tag: 'Orders' },
+  { key: 'assets', label: '核心内容资产', value: totalCoreAssets.value, icon: Document, theme: 'theme-material', tag: 'Assets' },
+  { key: 'snackOrders', label: '小吃订单', value: numberValue(stats.value.snackOrderCount), icon: Bowl, theme: 'theme-snack', tag: 'Snack' },
+  { key: 'supermarketOrders', label: '超市订单', value: numberValue(stats.value.supermarketOrderCount), icon: ShoppingCart, theme: 'theme-market', tag: 'Market' },
+  { key: 'pendingOrders', label: '待处理订单', value: numberValue(stats.value.pendingOrderCount), icon: Bowl, theme: 'theme-snack', tag: 'Pending' },
+  { key: 'paidOrders', label: '已支付订单', value: numberValue(stats.value.paidOrderCount), icon: ShoppingCart, theme: 'theme-market', tag: 'Paid' },
+  { key: 'tutor', label: '家教信息', value: numberValue(stats.value.tutorCount), icon: Reading, theme: 'theme-tutor', tag: 'Tutor' },
+  { key: 'secondhand', label: '二手商品', value: numberValue(stats.value.secondhandCount), icon: Goods, theme: 'theme-secondhand', tag: 'Trade' },
+  { key: 'forum', label: '论坛帖子', value: numberValue(stats.value.forumPostCount), icon: ChatDotRound, theme: 'theme-forum', tag: 'Forum' },
+  { key: 'material', label: '学习资料', value: numberValue(stats.value.studyMaterialCount), icon: Document, theme: 'theme-material', tag: 'Material' },
+  { key: 'driving', label: '驾校信息', value: numberValue(stats.value.drivingSchoolCount), icon: Van, theme: 'theme-driving', tag: 'Driving' },
+  { key: 'inquiry', label: '驾校咨询', value: numberValue(stats.value.drivingInquiryCount), icon: ChatDotRound, theme: 'theme-inquiry', tag: 'Inquiry' }
 ])
 
 const distributionItems = computed(() => {
   const items = [
-    { label: '论坛帖子', value: stats.value.forumPostCount },
-    { label: '学习资料', value: stats.value.studyMaterialCount },
-    { label: '家教信息', value: stats.value.tutorCount },
-    { label: '二手商品', value: stats.value.secondhandCount },
-    { label: '驾校信息', value: stats.value.drivingSchoolCount ?? 0 },
-    { label: '驾校咨询', value: stats.value.drivingInquiryCount ?? 0 }
+    ...orderTypeItems.value,
+    { label: '待处理订单', value: numberValue(stats.value.pendingOrderCount) },
+    { label: '处理中订单', value: numberValue(stats.value.processingOrderCount) },
+    { label: '已完成订单', value: numberValue(stats.value.completedOrderCount) },
+    { label: '已取消订单', value: numberValue(stats.value.cancelledOrderCount) },
+    { label: '论坛帖子', value: numberValue(stats.value.forumPostCount) },
+    { label: '学习资料', value: numberValue(stats.value.studyMaterialCount) },
+    { label: '家教信息', value: numberValue(stats.value.tutorCount) },
+    { label: '二手商品', value: numberValue(stats.value.secondhandCount) },
+    { label: '驾校信息', value: numberValue(stats.value.drivingSchoolCount) },
+    { label: '驾校咨询', value: numberValue(stats.value.drivingInquiryCount) }
   ]
 
   const max = Math.max(...items.map((item) => item.value), 1)
@@ -145,13 +202,129 @@ const distributionItems = computed(() => {
 })
 
 const loadStats = async () => {
+  await loadStatsSummary()
+  await fillOrderStatsFromOrders()
+  await fillContentAssetStats()
+}
+
+const loadStatsSummary = async () => {
   try {
     const res = await adminApi.getStats()
-    stats.value = res.data
+    const data = responseData(res)
+    stats.value = {
+      ...stats.value,
+      ...(data || {})
+    }
   } catch (error) {
     console.error('加载统计数据失败:', error)
   }
 }
+
+const fillOrderStatsFromOrders = async () => {
+  if (
+    totalOrders.value > 0 &&
+    orderTypeItems.value.some((item) => item.value > 0) &&
+    [
+      stats.value.pendingOrderCount,
+      stats.value.processingOrderCount,
+      stats.value.completedOrderCount,
+      stats.value.cancelledOrderCount
+    ].some((value) => numberValue(value) > 0)
+  ) {
+    return
+  }
+
+  try {
+    const res = await adminApi.getOrders({})
+    const orders = listData(res)
+    const nextStats = {
+      orderCount: orders.length,
+      snackOrderCount: 0,
+      supermarketOrderCount: 0,
+      tutorOrderCount: 0,
+      secondhandOrderCount: 0,
+      drivingSchoolOrderCount: 0,
+      pendingOrderCount: 0,
+      processingOrderCount: 0,
+      completedOrderCount: 0,
+      cancelledOrderCount: 0,
+      paidOrderCount: 0,
+      unpaidOrderCount: 0
+    }
+
+    orders.forEach((order) => {
+      if (order.type === 'snack') nextStats.snackOrderCount += 1
+      if (order.type === 'supermarket') nextStats.supermarketOrderCount += 1
+      if (order.type === 'tutor') nextStats.tutorOrderCount += 1
+      if (order.type === 'secondhand') nextStats.secondhandOrderCount += 1
+      if (order.type === 'driving_school') nextStats.drivingSchoolOrderCount += 1
+
+      if (order.status === 'pending') nextStats.pendingOrderCount += 1
+      if (order.status === 'processing') nextStats.processingOrderCount += 1
+      if (order.status === 'completed') nextStats.completedOrderCount += 1
+      if (order.status === 'cancelled') nextStats.cancelledOrderCount += 1
+
+      if (order.paymentStatus === 'paid' || order.payment_status === 'paid') {
+        nextStats.paidOrderCount += 1
+      }
+      if (order.paymentStatus === 'unpaid' || order.payment_status === 'unpaid') {
+        nextStats.unpaidOrderCount += 1
+      }
+    })
+
+    stats.value = {
+      ...stats.value,
+      ...nextStats
+    }
+  } catch (error) {
+    console.error('加载订单兜底统计失败:', error)
+  }
+}
+
+const fillContentAssetStats = async () => {
+  if (totalCoreAssets.value > 0) {
+    return
+  }
+
+  try {
+    const [
+      tutors,
+      secondhandItems,
+      forumPosts,
+      studyMaterials,
+      drivingSchools,
+      drivingInquiries
+    ] = await Promise.allSettled([
+      adminApi.getTutors({}),
+      adminApi.getSecondhandItems({}),
+      adminApi.getForumPosts({}),
+      adminApi.getStudyMaterials({}),
+      adminApi.getDrivingSchools({}),
+      adminApi.getDrivingInquiries()
+    ])
+
+    const countResult = (result) => {
+      if (result.status !== 'fulfilled') {
+        return 0
+      }
+      return listData(result.value).length
+    }
+
+    stats.value = {
+      ...stats.value,
+      tutorCount: countResult(tutors),
+      secondhandCount: countResult(secondhandItems),
+      forumPostCount: countResult(forumPosts),
+      studyMaterialCount: countResult(studyMaterials),
+      drivingSchoolCount: countResult(drivingSchools),
+      drivingInquiryCount: countResult(drivingInquiries)
+    }
+  } catch (error) {
+    console.error('加载内容资产兜底统计失败:', error)
+  }
+}
+
+const formatCurrency = (value) => numberValue(value).toFixed(2)
 
 onMounted(() => {
   loadStats()

@@ -176,7 +176,7 @@ router.beforeEach((to, from, next) => {
     next('/login')
   } else if (to.meta.requiresAdmin && userStore.user?.role !== 'admin') {
     next('/')
-  } else if ((to.path === '/login' || to.path === '/register') && token) {
+  } else if (to.path === '/register' && token) {
     next('/')
   } else {
     next()

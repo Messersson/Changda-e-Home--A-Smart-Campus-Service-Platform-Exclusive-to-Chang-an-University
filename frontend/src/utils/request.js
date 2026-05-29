@@ -88,7 +88,7 @@ request.interceptors.request.use(
 
     try {
       const userStore = useUserStore()
-      if (userStore?.token) {
+      if (!config.skipAuth && userStore?.token) {
         config.headers = config.headers || {}
         config.headers.Authorization = `Bearer ${userStore.token}`
       }

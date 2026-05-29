@@ -1,24 +1,4 @@
 services:
-  mysql:
-    image: mysql:8.4
-    restart: unless-stopped
-    environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-3709Lp}
-      MYSQL_DATABASE: ${DB_NAME:-changan_campus_service}
-      MYSQL_USER: ${DB_USER:-campus}
-      MYSQL_PASSWORD: ${DB_PASSWORD:-3709Lp}
-      TZ: Asia/Shanghai
-    command:
-      - --character-set-server=utf8mb4
-      - --collation-server=utf8mb4_unicode_ci
-    volumes:
-      - mysql-prod-data:/var/lib/mysql
-    healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u${DB_USER:-campus} -p${DB_PASSWORD:-3709Lp} --silent"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-
   backend:
     image: chd-campus-prod-backend:latest
     build:
@@ -28,21 +8,21 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: prod
       SERVER_PORT: 3000
-      DB_HOST: mysql
+      DB_HOST: new-api-mysql
       DB_PORT: 3306
       DB_NAME: ${DB_NAME:-changan_campus_service}
       DB_USER: ${DB_USER:-campus}
       DB_PASSWORD: ${DB_PASSWORD:-3709Lp}
       JWT_SECRET: ${JWT_SECRET:-please-change-this-production-secret}
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://127.0.0.1:8080,http://localhost:8080}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://127.0.0.1:8080,http://localhost:8080,https://changdaehome.oneais.dev}
       FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://127.0.0.1:8080}
       PAYMENT_PROVIDER_DEFAULT: ${PAYMENT_PROVIDER_DEFAULT:-mock}
       PAYMENT_MOCK_ENABLED: ${PAYMENT_MOCK_ENABLED:-true}
     ports:
-      - "3000:3000"
-    depends_on:
-      mysql:
-        condition: service_healthy
+      - "${BACKEND_HOST_PORT:-3001}:3000"
+    networks:
+      - default
+      - new-api-default
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:3000/api/health | grep -q 'ok'"]
       interval: 30s
@@ -63,5 +43,7 @@ services:
     ports:
       - "8080:80"
 
-volumes:
-  mysql-prod-data:
+networks:
+  new-api-default:
+    external: true
+    name: new-api_default
