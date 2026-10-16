@@ -244,7 +244,13 @@ public class AdminService {
     values.put("price", Maps.decimalValue(request.get("price")));
     values.put("description", Maps.stringValue(request.get("description"), ""));
     values.put("image", Maps.stringValue(request.get("image"), ""));
-    values.put("merchant", required(request, "merchant"));
+    Long merchantId = Maps.longValue(request.get("merchantId"));
+    if (merchantId == null) {
+      values.put("merchant", required(request, "merchant"));
+    } else {
+      values.put("merchant_id", merchantId);
+      values.put("merchant", merchantStoreName(merchantId));
+    }
     values.put("status", Maps.stringValue(request.get("status"), "active"));
     Long id = repository.insert("snacks", values);
     return Maps.api(repository.findById("snacks", id).orElseThrow());
@@ -253,7 +259,13 @@ public class AdminService {
   @Audited(module = "admin", action = "update_snack")
   public Map<String, Object> updateSnack(Long id, Map<String, Object> request) {
     requireExists("snacks", id, "菜品不存在");
-    repository.updateById("snacks", id, updateValues(request, List.of("name", "price", "description", "image", "merchant", "status")));
+    Map<String, Object> values = updateValues(request, List.of("name", "price", "description", "image", "merchant", "status"));
+    if (request.containsKey("merchantId")) {
+      Long merchantId = Maps.longValue(request.get("merchantId"));
+      values.put("merchant_id", merchantId);
+      values.put("merchant", merchantId == null ? Maps.stringValue(request.get("merchant"), "") : merchantStoreName(merchantId));
+    }
+    repository.updateById("snacks", id, values);
     return Maps.api(repository.findById("snacks", id).orElseThrow());
   }
 
@@ -311,6 +323,9 @@ public class AdminService {
     values.put("image", Maps.stringValue(request.get("image"), ""));
     values.put("description", Maps.stringValue(request.get("description"), ""));
     values.put("status", Maps.stringValue(request.get("status"), "active"));
+    if (request.containsKey("merchantId")) {
+      values.put("merchant_id", Maps.longValue(request.get("merchantId")));
+    }
     Long id = repository.insert("supermarket_products", values);
     return Maps.api(repository.findById("supermarket_products", id).orElseThrow());
   }
@@ -320,6 +335,9 @@ public class AdminService {
     Map<String, Object> values = updateValues(request, List.of("name", "price", "spec", "stock", "image", "description", "status"));
     if (request.containsKey("categoryId")) {
       values.put("category_id", request.get("categoryId"));
+    }
+    if (request.containsKey("merchantId")) {
+      values.put("merchant_id", Maps.longValue(request.get("merchantId")));
     }
     repository.updateById("supermarket_products", id, values);
     return Maps.api(repository.findById("supermarket_products", id).orElseThrow());
@@ -359,7 +377,19 @@ public class AdminService {
   }
 
   public List<Map<String, Object>> studyMaterials(String status) {
-    return Maps.apiList(repository.find("study_materials", statusFilter(status), "id DESC"));
+    Map<String, Object> filters = statusFilter(status);
+    Map<String, Object> params = new LinkedHashMap<>();
+    String sql = """
+        SELECT id, title, major, grade, subject, type, size, file_name, file_content_type, file_size,
+               download_count, uploader_id, uploader_name, description, status, created_at, updated_at
+        FROM study_materials
+        """;
+    if (filters.containsKey("status")) {
+      sql += " WHERE status = :status";
+      params.put("status", filters.get("status"));
+    }
+    sql += " ORDER BY id DESC";
+    return Maps.apiList(repository.query(sql, params));
   }
 
   public Map<String, Object> updateStudyMaterialStatus(Long id, String status) {
@@ -372,7 +402,11 @@ public class AdminService {
   }
 
   public List<Map<String, Object>> forumPosts(String status) {
-    return normalizeJsonList(repository.find("forum_posts", statusFilter(status), "id DESC"), "images");
+    List<Map<String, Object>> posts = normalizeJsonList(repository.find("forum_posts", statusFilter(status), "id DESC"), "images");
+    posts.forEach(post -> post.put(
+        "comments",
+        Maps.apiList(repository.find("forum_comments", Map.of("post_id", post.get("id")), "created_at ASC"))));
+    return posts;
   }
 
   public Map<String, Object> updateForumPostStatus(Long id, String status) {
@@ -461,9 +495,15 @@ public class AdminService {
         Map.of()));
   }
 
-  public void updateDrivingInquiryStatus(Long id, String status) {
+  public void updateDrivingInquiryStatus(Long id, Map<String, Object> request) {
     requireExists("driving_inquiries", id, "咨询记录不存在");
-    repository.updateById("driving_inquiries", id, Map.of("status", status));
+    Map<String, Object> values = new LinkedHashMap<>();
+    values.put("status", Maps.stringValue(request.get("status"), "replied"));
+    if (request.containsKey("reply")) {
+      values.put("reply", Maps.stringValue(request.get("reply"), ""));
+    }
+    values.put("replied_at", Timestamp.from(Instant.now()));
+    repository.updateById("driving_inquiries", id, values);
   }
 
   public List<Map<String, Object>> merchantApplications(String status) {
@@ -609,6 +649,12 @@ public class AdminService {
       return Map.of();
     }
     return Map.of("status", status);
+  }
+
+  private String merchantStoreName(Long merchantId) {
+    return repository.findById("merchant_profiles", merchantId)
+        .map(profile -> Maps.stringValue(profile.get("store_name"), "平台商家"))
+        .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "商家不存在"));
   }
 
   private Map<String, Object> updateStatus(String table, Long id, String status, String notFoundMessage) {

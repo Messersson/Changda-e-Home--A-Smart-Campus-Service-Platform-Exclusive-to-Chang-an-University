@@ -90,6 +90,12 @@ const routes = [
         name: 'Orders',
         component: () => import('@/views/Orders.vue'),
         meta: { title: '我的订单', requiresAuth: true, keepAlive: true }
+      },
+      {
+        path: 'my-submissions',
+        name: 'MySubmissions',
+        component: () => import('@/views/MySubmissions.vue'),
+        meta: { title: '我的发布', requiresAuth: true, keepAlive: true }
       }
     ]
   },
@@ -104,67 +110,67 @@ const routes = [
         path: 'dashboard',
         name: 'AdminDashboard',
         component: () => import('@/views/admin/Dashboard.vue'),
-        meta: { title: '数据统计', keepAlive: true }
+        meta: { title: '数据统计', keepAlive: false }
       },
       {
         path: 'users',
         name: 'AdminUsers',
         component: () => import('@/views/admin/Users.vue'),
-        meta: { title: '用户管理', keepAlive: true }
+        meta: { title: '用户管理', keepAlive: false }
       },
       {
         path: 'merchants',
         name: 'AdminMerchants',
         component: () => import('@/views/admin/Merchants.vue'),
-        meta: { title: '商家管理', keepAlive: true }
+        meta: { title: '商家管理', keepAlive: false }
       },
       {
         path: 'snacks',
         name: 'AdminSnacks',
         component: () => import('@/views/admin/Snacks.vue'),
-        meta: { title: '小吃摊管理', keepAlive: true }
+        meta: { title: '小吃摊管理', keepAlive: false }
       },
       {
         path: 'supermarket',
         name: 'AdminSupermarket',
         component: () => import('@/views/admin/Supermarket.vue'),
-        meta: { title: '超市管理', keepAlive: true }
+        meta: { title: '超市管理', keepAlive: false }
       },
       {
         path: 'tutors',
         name: 'AdminTutors',
         component: () => import('@/views/admin/Tutors.vue'),
-        meta: { title: '家教管理', keepAlive: true }
+        meta: { title: '家教管理', keepAlive: false }
       },
       {
         path: 'secondhand',
         name: 'AdminSecondhand',
         component: () => import('@/views/admin/Secondhand.vue'),
-        meta: { title: '二手交易管理', keepAlive: true }
+        meta: { title: '二手交易管理', keepAlive: false }
       },
       {
         path: 'study-materials',
         name: 'AdminStudyMaterials',
         component: () => import('@/views/admin/StudyMaterials.vue'),
-        meta: { title: '学习资料管理', keepAlive: true }
+        meta: { title: '学习资料管理', keepAlive: false }
       },
       {
         path: 'forum',
         name: 'AdminForum',
         component: () => import('@/views/admin/Forum.vue'),
-        meta: { title: '论坛管理', keepAlive: true }
+        meta: { title: '论坛管理', keepAlive: false }
       },
       {
         path: 'orders',
         name: 'AdminOrders',
         component: () => import('@/views/admin/Orders.vue'),
-        meta: { title: '订单管理', keepAlive: true }
+        meta: { title: '订单管理', keepAlive: false }
       },
       {
         path: 'driving-schools',
         name: 'AdminDrivingSchools',
         component: () => import('@/views/admin/DrivingSchools.vue'),
-        meta: { title: '驾校管理', keepAlive: true }
+        meta: { title: '驾校管理', keepAlive: false }
       }
     ]
   },

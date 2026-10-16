@@ -9,7 +9,7 @@
           <div class="home-brand__icon">长</div>
           <div>
             <div class="brand-chip">CHD Campus Service</div>
-            <h1>长安大学校园服务平台</h1>
+            <h1>长大e家校园服务平台</h1>
             <p>一站式校园生活、学习与交流服务中心</p>
           </div>
         </div>
@@ -84,6 +84,10 @@
             <el-menu-item v-if="!isMerchant && !isGuest" index="/orders">
               <el-icon><Tickets /></el-icon>
               <span>我的订单</span>
+            </el-menu-item>
+            <el-menu-item v-if="!isGuest" index="/my-submissions">
+              <el-icon><DocumentChecked /></el-icon>
+              <span>我的发布</span>
             </el-menu-item>
           </el-menu>
 

@@ -24,6 +24,7 @@
           </template>
         </el-table-column>
         <el-table-column prop="size" label="大小" width="80" />
+        <el-table-column prop="fileName" label="文件名" min-width="150" show-overflow-tooltip />
         <el-table-column prop="downloadCount" label="下载次数" width="100" sortable />
         <el-table-column label="状态" width="100">
           <template #default="{ row }">
@@ -36,6 +37,7 @@
           <template #default="{ row }">
             <el-button v-if="row.status === 'pending'" type="success" size="small" @click="updateStatus(row, 'active')">通过</el-button>
             <el-button v-if="row.status === 'pending'" type="danger" size="small" @click="updateStatus(row, 'rejected')">拒绝</el-button>
+            <el-button v-if="row.fileName" size="small" @click="downloadFile(row)">下载文件</el-button>
             <el-button size="small" type="danger" @click="deleteMaterial(row)">删除</el-button>
           </template>
         </el-table-column>
@@ -87,6 +89,22 @@ const updateStatus = async (material, status) => {
     ElMessage.success('操作成功')
   } catch (error) {
     console.error('更新状态失败:', error)
+  }
+}
+
+const downloadFile = async (material) => {
+  try {
+    const blob = await adminApi.downloadStudyMaterialFile(material.id)
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = material.fileName || `material-${material.id}`
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(url)
+  } catch (error) {
+    console.error('下载文件失败:', error)
   }
 }
 

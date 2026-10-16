@@ -51,6 +51,11 @@
             </el-table-column>
             <el-table-column prop="spec" label="规格" width="100" />
             <el-table-column prop="stock" label="库存" width="80" />
+            <el-table-column label="商家账号" width="120">
+              <template #default="{ row }">
+                {{ merchantName(row.merchantId) || '平台商品' }}
+              </template>
+            </el-table-column>
             <el-table-column label="状态" width="100">
               <template #default="{ row }">
                 <el-tag :type="row.status === 'active' ? 'success' : 'info'">
@@ -109,6 +114,16 @@
         <el-form-item label="库存" prop="stock">
           <el-input-number v-model="productForm.stock" :min="0" />
         </el-form-item>
+        <el-form-item label="商家">
+          <el-select v-model="productForm.merchantId" placeholder="选择商家（可选）" clearable style="width: 100%">
+            <el-option
+              v-for="merchant in merchants"
+              :key="merchant.id"
+              :label="merchant.storeName"
+              :value="merchant.id"
+            />
+          </el-select>
+        </el-form-item>
         <el-form-item label="描述">
           <el-input v-model="productForm.description" type="textarea" :rows="3" placeholder="请输入商品描述" />
         </el-form-item>
@@ -136,6 +151,7 @@ import ImageDropInput from '@/components/ImageDropInput.vue'
 
 const categories = ref([])
 const products = ref([])
+const merchants = ref([])
 const selectedCategory = ref('')
 const categoryDialogVisible = ref(false)
 const productDialogVisible = ref(false)
@@ -155,6 +171,7 @@ const productForm = ref({
   price: 0,
   spec: '',
   stock: 0,
+  merchantId: null,
   description: '',
   image: '',
   status: true
@@ -194,6 +211,22 @@ const loadCategories = async () => {
   } catch (error) {
     console.error('加载分类失败:', error)
   }
+}
+
+const loadMerchants = async () => {
+  try {
+    const res = await adminApi.getMerchants({ status: 'active' })
+    merchants.value = (Array.isArray(res.data) ? res.data : []).map(item => ({
+      ...item,
+      storeName: item.storeName || item.store_name
+    }))
+  } catch (error) {
+    console.error('加载商家列表失败:', error)
+  }
+}
+
+const merchantName = (merchantId) => {
+  return merchants.value.find(item => item.id === merchantId)?.storeName || ''
 }
 
 const loadProducts = async () => {
@@ -246,7 +279,7 @@ const submitCategory = async () => {
 
 const showProductDialog = () => {
   isProductEdit.value = false
-  productForm.value = { name: '', categoryId: null, price: 0, spec: '', stock: 0, description: '', image: '', status: true }
+  productForm.value = { name: '', categoryId: null, price: 0, spec: '', stock: 0, merchantId: null, description: '', image: '', status: true }
   productDialogVisible.value = true
 }
 
@@ -257,6 +290,7 @@ const showProductEditDialog = (product) => {
     categoryId: product.categoryId == null ? null : Number(product.categoryId),
     price: Number(product.price ?? 0),
     stock: Number(product.stock ?? 0),
+    merchantId: product.merchantId ?? product.merchant_id ?? null,
     status: product.status === 'active'
   }
   productDialogVisible.value = true
@@ -309,6 +343,7 @@ const deleteProduct = async (product) => {
 
 onMounted(() => {
   loadCategories()
+  loadMerchants()
   loadProducts()
 })
 </script>

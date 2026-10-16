@@ -7,7 +7,7 @@
     <div class="login-layout">
       <section class="login-showcase">
         <div class="login-badge">CHD Campus Portal</div>
-        <h1>长安大学校园服务平台</h1>
+        <h1>长大e家校园服务平台</h1>
         <p class="login-subtitle">
           连接校园生活服务、学习资料与社区互动，打造更统一、更现代的校园数字入口。
         </p>

@@ -43,6 +43,7 @@
         </template>
       </el-table-column>
       <el-table-column prop="size" label="大小" width="100" />
+      <el-table-column prop="fileName" label="文件名" min-width="160" show-overflow-tooltip />
       <el-table-column prop="downloadCount" label="下载次数" width="100" sortable />
       <el-table-column prop="uploaderName" label="上传者" width="100" />
       <el-table-column label="操作" width="150" fixed="right">
@@ -66,6 +67,7 @@
         <div class="detail-info">
           <p><strong>类型：</strong>{{ selectedMaterial.type.toUpperCase() }}</p>
           <p><strong>大小：</strong>{{ selectedMaterial.size }}</p>
+          <p v-if="selectedMaterial.fileName"><strong>文件：</strong>{{ selectedMaterial.fileName }}</p>
           <p><strong>下载次数：</strong>{{ selectedMaterial.downloadCount }}</p>
           <p><strong>上传者：</strong>{{ selectedMaterial.uploaderName }}</p>
           <p><strong>描述：</strong>{{ selectedMaterial.description }}</p>
@@ -108,8 +110,18 @@
             <el-option label="其他" value="other" />
           </el-select>
         </el-form-item>
-        <el-form-item label="大小" prop="size">
-          <el-input v-model="uploadForm.size" placeholder="请输入文件大小，如：5.2MB" />
+        <el-form-item label="文件" prop="file">
+          <el-upload
+            drag
+            :auto-upload="false"
+            :limit="1"
+            :on-change="handleFileChange"
+            :on-remove="handleFileRemove"
+            :file-list="fileList"
+          >
+            <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
+            <div class="el-upload__text">拖拽文件到此处，或点击选择文件</div>
+          </el-upload>
         </el-form-item>
         <el-form-item label="描述" prop="description">
           <el-input v-model="uploadForm.description" type="textarea" :rows="4" placeholder="请输入资料描述" />
@@ -126,6 +138,7 @@
 <script setup>
 import { computed, ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
+import { UploadFilled } from '@element-plus/icons-vue'
 import { studyMaterialApi } from '@/api'
 import { useUserStore } from '@/stores/user'
 
@@ -148,9 +161,10 @@ const uploadForm = ref({
   grade: '',
   subject: '',
   type: 'pdf',
-  size: '',
-  description: ''
+  description: '',
+  file: null
 })
+const fileList = ref([])
 
 const uploadRules = {
   title: [{ required: true, message: '请输入标题', trigger: 'blur' }],
@@ -158,8 +172,21 @@ const uploadRules = {
   grade: [{ required: true, message: '请选择年级', trigger: 'change' }],
   subject: [{ required: true, message: '请输入学科', trigger: 'blur' }],
   type: [{ required: true, message: '请选择类型', trigger: 'change' }],
-  size: [{ required: true, message: '请输入文件大小', trigger: 'blur' }],
+  file: [{ required: true, message: '请选择上传文件', trigger: 'change' }],
   description: [{ required: true, message: '请输入描述', trigger: 'blur' }]
+}
+
+const handleFileChange = (uploadFile) => {
+  uploadForm.value.file = uploadFile.raw
+  fileList.value = [uploadFile]
+  const extension = uploadFile.name.split('.').pop()?.toLowerCase()
+  const typeMap = { pdf: 'pdf', doc: 'doc', docx: 'doc', xls: 'xls', xlsx: 'xls', ppt: 'ppt', pptx: 'ppt' }
+  uploadForm.value.type = typeMap[extension] || 'other'
+}
+
+const handleFileRemove = () => {
+  uploadForm.value.file = null
+  fileList.value = []
 }
 
 const loadMaterials = async () => {
@@ -187,7 +214,15 @@ const downloadMaterial = async (material) => {
     return
   }
   try {
-    await studyMaterialApi.downloadMaterial(material.id)
+    const blob = await studyMaterialApi.downloadFile(material.id)
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = material.fileName || `${material.title}.${material.type || 'file'}`
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(url)
     ElMessage.success('下载成功')
     loadMaterials()
   } catch (error) {
@@ -205,10 +240,22 @@ const submitUpload = async () => {
     if (valid) {
       uploading.value = true
       try {
-        await studyMaterialApi.uploadMaterial(uploadForm.value)
+        if (!uploadForm.value.file) {
+          ElMessage.warning('请选择上传文件')
+          return
+        }
+        const formData = new FormData()
+        Object.entries(uploadForm.value).forEach(([key, value]) => {
+          if (key !== 'file' && value !== undefined && value !== null) {
+            formData.append(key, value)
+          }
+        })
+        formData.append('file', uploadForm.value.file)
+        await studyMaterialApi.uploadMaterialFile(formData)
         ElMessage.success('上传成功，等待审核')
         uploadDialogVisible.value = false
-        uploadForm.value = { title: '', major: '', grade: '', subject: '', type: 'pdf', size: '', description: '' }
+        uploadForm.value = { title: '', major: '', grade: '', subject: '', type: 'pdf', description: '', file: null }
+        fileList.value = []
         loadMaterials()
       } catch (error) {
         console.error('上传失败:', error)

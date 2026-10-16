@@ -76,8 +76,10 @@ export const studyMaterialApi = {
   getMaterials: (params) => request.get('/study-material/list', { params }),
   getMaterialDetail: (id) => request.get(`/study-material/detail/${id}`),
   uploadMaterial: (data) => request.post('/study-material/upload', data),
+  uploadMaterialFile: (data) => request.post('/study-material/upload-file', data),
   getMyMaterials: () => request.get('/study-material/my'),
-  downloadMaterial: (id) => request.post(`/study-material/download/${id}`)
+  downloadMaterial: (id) => request.post(`/study-material/download/${id}`),
+  downloadFile: (id) => request.get(`/study-material/file/${id}`, { responseType: 'blob', silent: true })
 }
 
 export const forumApi = {
@@ -120,6 +122,7 @@ export const adminApi = {
   getStudyMaterials: (params) => request.get('/admin/study-materials', { params }),
   updateStudyMaterialStatus: (id, data) => request.put(`/admin/study-materials/${id}/status`, data),
   deleteStudyMaterial: (id) => request.delete(`/admin/study-materials/${id}`),
+  downloadStudyMaterialFile: (id) => request.get(`/study-material/file/${id}`, { responseType: 'blob', silent: true }),
   getForumPosts: (params) => request.get('/admin/forum-posts', { params }),
   updateForumPostStatus: (id, data) => request.put(`/admin/forum-posts/${id}/status`, data),
   deleteForumPost: (id) => request.delete(`/admin/forum-posts/${id}`),

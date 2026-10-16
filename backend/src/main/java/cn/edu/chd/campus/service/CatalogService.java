@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
 @Service
 public class CatalogService {
@@ -253,7 +254,12 @@ public class CatalogService {
   public List<Map<String, Object>> studyMaterials(Map<String, Object> query) {
     Map<String, Object> params = new LinkedHashMap<>();
     params.put("status", "active");
-    StringBuilder sql = new StringBuilder("SELECT * FROM study_materials WHERE status = :status");
+    StringBuilder sql = new StringBuilder("""
+        SELECT id, title, major, grade, subject, type, size, file_name, file_content_type, file_size,
+               download_count, uploader_id, uploader_name, description, status, created_at, updated_at
+        FROM study_materials
+        WHERE status = :status
+        """);
     appendEquals(sql, params, "major", "major", query.get("major"));
     appendEquals(sql, params, "grade", "grade", query.get("grade"));
     appendLike(sql, params, "subject", query.get("subject"));
@@ -262,7 +268,12 @@ public class CatalogService {
   }
 
   public Map<String, Object> studyMaterial(Long id) {
-    return Maps.api(repository.findOne("study_materials", Map.of("id", id, "status", "active"))
+    return Maps.api(repository.queryOne("""
+            SELECT id, title, major, grade, subject, type, size, file_name, file_content_type, file_size,
+                   download_count, uploader_id, uploader_name, description, status, created_at, updated_at
+            FROM study_materials
+            WHERE id = :id AND status = 'active'
+            """, Map.of("id", id))
         .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "资料不存在")));
   }
 
@@ -282,11 +293,65 @@ public class CatalogService {
     values.put("description", required(request, "description"));
     values.put("status", "pending");
     Long id = repository.insert("study_materials", values);
-    return Maps.api(repository.findById("study_materials", id).orElseThrow());
+    return studyMaterialRecord(id);
+  }
+
+  @Audited(module = "study_material", action = "upload_file")
+  public Map<String, Object> uploadStudyMaterialFile(
+      Long userId,
+      Map<String, String> request,
+      MultipartFile file) {
+    if (file == null || file.isEmpty()) {
+      throw new BusinessException("请选择要上传的文件");
+    }
+    Map<String, Object> user = user(userId);
+    Map<String, Object> values = new LinkedHashMap<>();
+    values.put("title", requiredString(request, "title"));
+    values.put("major", requiredString(request, "major"));
+    values.put("grade", requiredString(request, "grade"));
+    values.put("subject", requiredString(request, "subject"));
+    values.put("type", Maps.stringValue(request.get("type"), "other"));
+    values.put("size", humanSize(file.getSize()));
+    values.put("file_name", file.getOriginalFilename() == null ? "material" : file.getOriginalFilename());
+    values.put("file_content_type", file.getContentType());
+    values.put("file_size", file.getSize());
+    try {
+      values.put("file_content", file.getBytes());
+    } catch (Exception exception) {
+      throw new BusinessException("文件读取失败");
+    }
+    values.put("download_count", 0);
+    values.put("uploader_id", userId);
+    values.put("uploader_name", user.get("name"));
+    values.put("description", requiredString(request, "description"));
+    values.put("status", "pending");
+    Long id = repository.insert("study_materials", values);
+    return studyMaterialRecord(id);
   }
 
   public List<Map<String, Object>> myStudyMaterials(Long userId) {
-    return Maps.apiList(repository.find("study_materials", Map.of("uploader_id", userId), "created_at DESC"));
+    return Maps.apiList(repository.query("""
+        SELECT id, title, major, grade, subject, type, size, file_name, file_content_type, file_size,
+               download_count, uploader_id, uploader_name, description, status, created_at, updated_at
+        FROM study_materials
+        WHERE uploader_id = :userId
+        ORDER BY created_at DESC
+        """, Map.of("userId", userId)));
+  }
+
+  public Map<String, Object> studyMaterialFile(Long id) {
+    Map<String, Object> material = repository.findById("study_materials", id)
+        .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "资料不存在"));
+    Object content = material.get("file_content");
+    if (!(content instanceof byte[] bytes) || bytes.length == 0) {
+      throw new BusinessException(HttpStatus.NOT_FOUND, "该资料没有可下载文件");
+    }
+    repository.update("UPDATE study_materials SET download_count = download_count + 1 WHERE id = :id", Map.of("id", id));
+    Map<String, Object> result = new LinkedHashMap<>();
+    result.put("fileName", material.get("file_name"));
+    result.put("fileContentType", material.get("file_content_type"));
+    result.put("fileContent", bytes);
+    return result;
   }
 
   public Map<String, Object> downloadStudyMaterial(Long id) {
@@ -316,7 +381,9 @@ public class CatalogService {
     }
     sql.append(" ORDER BY created_at DESC");
     List<Map<String, Object>> posts = normalizeJsonList(repository.query(sql.toString(), params), "images");
-    posts.forEach(post -> post.put("comments", List.of()));
+    posts.forEach(post -> post.put(
+        "comments",
+        Maps.apiList(repository.find("forum_comments", Map.of("post_id", post.get("id")), "created_at ASC"))));
     return posts;
   }
 
@@ -406,6 +473,34 @@ public class CatalogService {
       throw new BusinessException("参数校验失败");
     }
     return value;
+  }
+
+  private String requiredString(Map<String, String> request, String key) {
+    String value = Maps.stringValue(request.get(key), "").trim();
+    if (value.isBlank()) {
+      throw new BusinessException("参数校验失败");
+    }
+    return value;
+  }
+
+  private Map<String, Object> studyMaterialRecord(Long id) {
+    return Maps.api(repository.queryOne("""
+            SELECT id, title, major, grade, subject, type, size, file_name, file_content_type, file_size,
+                   download_count, uploader_id, uploader_name, description, status, created_at, updated_at
+            FROM study_materials
+            WHERE id = :id
+            """, Map.of("id", id))
+        .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "资料不存在")));
+  }
+
+  private String humanSize(long bytes) {
+    if (bytes < 1024) {
+      return bytes + "B";
+    }
+    if (bytes < 1024 * 1024) {
+      return String.format("%.1fKB", bytes / 1024.0);
+    }
+    return String.format("%.1fMB", bytes / 1024.0 / 1024.0);
   }
 
   private Map<String, Object> category(String id, String name, String icon) {

@@ -14,6 +14,11 @@
           <template #default="{ row }">¥{{ Number(row.price ?? 0).toFixed(2) }}</template>
         </el-table-column>
         <el-table-column prop="merchant" label="商家" width="150" />
+        <el-table-column label="商家账号" width="120">
+          <template #default="{ row }">
+            {{ merchantName(row.merchantId) || '平台商品' }}
+          </template>
+        </el-table-column>
         <el-table-column prop="description" label="描述" min-width="200" show-overflow-tooltip />
         <el-table-column label="状态" width="100">
           <template #default="{ row }">
@@ -40,8 +45,18 @@
           <el-input-number v-model="form.price" :min="0" :precision="2" />
           <span style="margin-left: 10px">元</span>
         </el-form-item>
-        <el-form-item label="商家" prop="merchant">
-          <el-input v-model="form.merchant" placeholder="请输入商家名称" />
+        <el-form-item label="商家">
+          <el-select v-model="form.merchantId" placeholder="选择商家（可选）" clearable style="width: 100%">
+            <el-option
+              v-for="merchant in merchants"
+              :key="merchant.id"
+              :label="merchant.storeName"
+              :value="merchant.id"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="商家名称">
+          <el-input v-model="form.merchant" placeholder="未选择商家时填写平台商品名称" />
         </el-form-item>
         <el-form-item label="描述" prop="description">
           <el-input v-model="form.description" type="textarea" :rows="3" placeholder="请输入菜品描述" />
@@ -68,6 +83,7 @@ import { adminApi } from '@/api'
 import ImageDropInput from '@/components/ImageDropInput.vue'
 
 const snacks = ref([])
+const merchants = ref([])
 const dialogVisible = ref(false)
 const isEdit = ref(false)
 const submitting = ref(false)
@@ -76,6 +92,7 @@ const form = ref({
   name: '',
   price: 0,
   merchant: '',
+  merchantId: null,
   description: '',
   image: '',
   status: true
@@ -84,8 +101,23 @@ const form = ref({
 const rules = {
   name: [{ required: true, message: '请输入菜品名称', trigger: 'blur' }],
   price: [{ required: true, message: '请输入价格', trigger: 'blur' }],
-  merchant: [{ required: true, message: '请输入商家名称', trigger: 'blur' }],
   description: [{ required: true, message: '请输入描述', trigger: 'blur' }]
+}
+
+const loadMerchants = async () => {
+  try {
+    const res = await adminApi.getMerchants({ status: 'active' })
+    merchants.value = (Array.isArray(res.data) ? res.data : []).map(item => ({
+      ...item,
+      storeName: item.storeName || item.store_name
+    }))
+  } catch (error) {
+    console.error('加载商家列表失败:', error)
+  }
+}
+
+const merchantName = (merchantId) => {
+  return merchants.value.find(item => item.id === merchantId)?.storeName || ''
 }
 
 const loadSnacks = async () => {
@@ -102,16 +134,17 @@ const loadSnacks = async () => {
 
 const showAddDialog = () => {
   isEdit.value = false
-  form.value = { name: '', price: 0, merchant: '', description: '', image: '', status: true }
+  form.value = { name: '', price: 0, merchant: '', merchantId: null, description: '', image: '', status: true }
   dialogVisible.value = true
 }
 
 const showEditDialog = (snack) => {
   isEdit.value = true
   form.value = {
-    ...snack,
-    price: Number(snack.price ?? 0),
-    status: snack.status === 'active'
+      ...snack,
+      price: Number(snack.price ?? 0),
+      merchantId: snack.merchantId ?? snack.merchant_id ?? null,
+      status: snack.status === 'active'
   }
   dialogVisible.value = true
 }
@@ -162,6 +195,7 @@ const deleteSnack = async (snack) => {
 }
 
 onMounted(() => {
+  loadMerchants()
   loadSnacks()
 })
 </script>

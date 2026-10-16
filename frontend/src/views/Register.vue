@@ -2,7 +2,7 @@
   <div class="register-container">
     <div class="register-box">
       <div class="register-header">
-        <h1>长安大学校园服务平台</h1>
+        <h1>长大e家校园服务平台</h1>
         <p>欢迎注册</p>
         <p class="register-notice">仅限本校在校学生注册，需使用学号并绑定学校教育邮箱（@chd.edu.cn）</p>
       </div>
@@ -11,7 +11,7 @@
           <el-input v-model="registerForm.studentId" placeholder="请输入学号（10位数字）" prefix-icon="User" size="large" />
         </el-form-item>
         <el-form-item prop="email">
-          <el-input v-model="registerForm.email" placeholder="请输入长安大学教育邮箱（@chd.edu.cn）" prefix-icon="Message" size="large" />
+          <el-input v-model="registerForm.email" placeholder="请输入长大e家教育邮箱（@chd.edu.cn）" prefix-icon="Message" size="large" />
         </el-form-item>
         <el-form-item prop="code">
           <div style="display: flex; gap: 10px; width: 100%">
@@ -94,7 +94,7 @@ const validateStudentId = (rule, value, callback) => {
 const validateEmail = (rule, value, callback) => {
   const pattern = /^[a-zA-Z0-9._%+-]+@chd\.edu\.cn$/
   if (!pattern.test(value)) {
-    callback(new Error('邮箱必须为长安大学教育邮箱（@chd.edu.cn）'))
+    callback(new Error('邮箱必须为长大e家教育邮箱（@chd.edu.cn）'))
   } else {
     callback()
   }

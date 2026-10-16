@@ -76,6 +76,10 @@
           </div>
 
           <div class="admin-header__actions">
+            <el-tooltip content="刷新当前页面" placement="bottom">
+              <el-button circle :icon="Refresh" @click="refreshCurrentPage" />
+            </el-tooltip>
+
             <div class="admin-status glass-panel">
               <span class="admin-status__dot"></span>
               系统运行中
@@ -108,11 +112,11 @@
           <router-view v-slot="{ Component, route }">
             <transition name="page-fade-slide" mode="out-in">
               <keep-alive>
-                <component :is="Component" v-if="route.meta.keepAlive" :key="route.name" />
+                <component :is="Component" v-if="route.meta.keepAlive" :key="`${route.name}-${refreshKey}`" />
               </keep-alive>
             </transition>
             <transition name="page-fade-slide" mode="out-in">
-              <component :is="Component" v-if="!route.meta.keepAlive" :key="route.fullPath" />
+              <component :is="Component" v-if="!route.meta.keepAlive" :key="`${route.fullPath}-${refreshKey}`" />
             </transition>
           </router-view>
         </el-main>
@@ -130,18 +134,22 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import UserProfileDialog from '@/components/UserProfileDialog.vue'
 import adminConsoleBg from '@/assets/bg-admin-console.svg'
-import { Shop } from '@element-plus/icons-vue'
+import { Refresh, Shop } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const route = useRoute()
 const userStore = useUserStore()
 const profileDialogVisible = ref(false)
+const refreshKey = ref(0)
 
 const adminShellStyle = {
   backgroundImage: `linear-gradient(180deg, rgba(11, 18, 35, 0.42), rgba(11, 18, 35, 0.55)), url(${adminConsoleBg})`
 }
 
 const activeMenu = computed(() => route.path)
+const refreshCurrentPage = () => {
+  refreshKey.value += 1
+}
 
 const currentTitle = computed(() => {
   const titles = {

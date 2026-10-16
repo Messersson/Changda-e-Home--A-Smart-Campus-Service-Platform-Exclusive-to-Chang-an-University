@@ -183,7 +183,6 @@ public class OrderService {
     }
     restoreSideEffects(order);
     repository.updateById("orders", orderId, Map.of("status", "cancelled"));
-    logOrderStatus(orderId, Maps.stringValue(order.get("status"), ""), "cancelled", "user", userId, "User cancelled order");
     return normalizeOrder(repository.findById("orders", orderId).orElseThrow());
   }
 

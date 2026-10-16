@@ -50,6 +50,11 @@
             <el-table-column prop="name" label="咨询人" width="100" />
             <el-table-column prop="phone" label="联系电话" width="120" />
             <el-table-column prop="question" label="咨询内容" min-width="200" show-overflow-tooltip />
+            <el-table-column prop="reply" label="回复内容" min-width="180" show-overflow-tooltip>
+              <template #default="{ row }">
+                {{ row.reply || '-' }}
+              </template>
+            </el-table-column>
             <el-table-column label="状态" width="90">
               <template #default="{ row }">
                 <el-tag :type="row.status === 'replied' ? 'success' : 'warning'">
@@ -237,7 +242,14 @@ const deleteSchool = async (row) => {
 
 const markReplied = async (row) => {
   try {
-    await adminApi.updateDrivingInquiryStatus(row.id, { status: 'replied' })
+    const { value } = await ElMessageBox.prompt('请输入给用户的回复内容', '回复咨询', {
+      confirmButtonText: '提交回复',
+      cancelButtonText: '取消',
+      inputType: 'textarea',
+      inputValue: row.reply || '',
+      inputValidator: (text) => Boolean(String(text || '').trim()) || '请输入回复内容'
+    })
+    await adminApi.updateDrivingInquiryStatus(row.id, { status: 'replied', reply: value })
     ElMessage.success('已标记为已回复')
     loadInquiries()
   } catch (error) {
@@ -247,6 +259,7 @@ const markReplied = async (row) => {
 
 onMounted(() => {
   loadSchools()
+  loadInquiries()
 })
 </script>
 

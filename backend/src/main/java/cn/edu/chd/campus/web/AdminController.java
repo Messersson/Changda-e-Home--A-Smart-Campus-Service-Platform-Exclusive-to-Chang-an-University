@@ -235,7 +235,7 @@ public class AdminController {
 
   @PutMapping("/driving-inquiries/{id}/status")
   public ApiResponse<Void> updateDrivingInquiryStatus(@PathVariable Long id, @RequestBody Map<String, Object> request) {
-    adminService.updateDrivingInquiryStatus(id, status(request));
+    adminService.updateDrivingInquiryStatus(id, Maps.mutable(request));
     return ApiResponse.ok("咨询状态更新成功");
   }
 
