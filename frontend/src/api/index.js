@@ -166,6 +166,5 @@ export const afterSaleApi = {
 export const paymentApi = {
   createPayment: (data) => request.post('/payments/create', data),
   getPayment: (id) => request.get(`/payments/${id}`, { silent: true }),
-  confirmMockPayment: (id) => request.post(`/payments/${id}/mock/confirm`),
-  refundPayment: (id, data) => request.post(`/payments/${id}/refund`, data)
+  confirmMockPayment: (id) => request.post(`/payments/${id}/mock/confirm`)
 }

@@ -6,7 +6,8 @@
         <el-option v-for="merchant in merchants" :key="merchant" :label="merchant" :value="merchant" />
       </el-select>
     </div>
-    <el-row :gutter="20" class="snack-list">
+    <el-empty v-if="snacks.length === 0" description="暂无小吃数据" />
+    <el-row v-else :gutter="20" class="snack-list">
       <el-col v-for="snack in snacks" :key="snack.id" :xs="24" :sm="12" :md="8" :lg="6">
         <el-card class="snack-card" shadow="hover" @click="showDetail(snack)">
           <div class="snack-image">

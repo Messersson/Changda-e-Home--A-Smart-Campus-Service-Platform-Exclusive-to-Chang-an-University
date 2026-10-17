@@ -71,6 +71,11 @@ a {
   color: inherit;
 }
 
+:focus-visible {
+  outline: 3px solid rgba(79, 124, 255, 0.82);
+  outline-offset: 3px;
+}
+
 .glass-panel {
   background: var(--app-surface);
   border: 1px solid var(--app-border);
@@ -390,5 +395,16 @@ a {
 
   .section-title h2 {
     font-size: 24px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

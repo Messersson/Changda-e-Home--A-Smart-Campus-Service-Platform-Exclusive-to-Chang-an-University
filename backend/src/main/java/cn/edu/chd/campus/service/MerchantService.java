@@ -170,10 +170,7 @@ public class MerchantService {
     if (!merchantId.equals(Maps.longValue(order.get("merchant_id")))) {
       throw new BusinessException(HttpStatus.NOT_FOUND, "Order not found");
     }
-    if (!List.of("pending", "processing", "completed", "cancelled").contains(status)) {
-      throw new BusinessException("Unsupported order status");
-    }
-    repository.updateById("orders", id, Map.of("status", status));
+    orderService.updateOrderStatus(id, status, "merchant", userId);
     return normalizeMerchantOrder(repository.findById("orders", id).orElseThrow());
   }
 
@@ -201,10 +198,15 @@ public class MerchantService {
   @Audited(module = "merchant", action = "handle_after_sale")
   public Map<String, Object> handleAfterSale(Long userId, Long id, Map<String, Object> request) {
     Long merchantId = Maps.longValue(activeProfile(userId).get("id"));
-    Map<String, Object> row = repository.findById("order_after_sales", id)
+    Map<String, Object> row = repository.queryOne(
+            "SELECT * FROM order_after_sales WHERE id = :id FOR UPDATE",
+            Map.of("id", id))
         .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "After-sales request not found"));
     if (!merchantId.equals(Maps.longValue(row.get("merchant_id")))) {
       throw new BusinessException(HttpStatus.NOT_FOUND, "After-sales request not found");
+    }
+    if (!"pending".equals(Maps.stringValue(row.get("status"), ""))) {
+      throw new BusinessException("After-sales request has already been handled");
     }
     String status = Maps.stringValue(request.get("status"), "").trim();
     if ("approved".equals(status)) {

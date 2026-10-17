@@ -200,4 +200,51 @@ onMounted(async () => {
 .merchant-main {
   padding: 18px 0 0;
 }
+
+@media (max-width: 900px) {
+  .merchant-shell {
+    padding: 12px;
+  }
+
+  .merchant-layout {
+    display: block;
+  }
+
+  .merchant-aside {
+    width: 100% !important;
+    margin-bottom: 14px;
+    padding: 12px 14px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+  }
+
+  .merchant-brand {
+    margin-bottom: 10px;
+  }
+
+  .merchant-menu {
+    display: flex;
+    width: max-content;
+    min-width: 100%;
+    border: none;
+  }
+
+  .merchant-menu :deep(.el-menu-item) {
+    flex: 0 0 auto;
+    height: 40px;
+    margin: 0 6px 0 0;
+    padding: 0 14px;
+    border-radius: 12px;
+    white-space: nowrap;
+  }
+
+  .merchant-header {
+    padding: 16px 18px;
+  }
+
+  .merchant-header h1 {
+    font-size: 22px;
+  }
+}
 </style>

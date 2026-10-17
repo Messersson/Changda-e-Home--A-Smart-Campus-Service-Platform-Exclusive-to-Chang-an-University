@@ -5,6 +5,7 @@ import cn.edu.chd.campus.common.BusinessException;
 import cn.edu.chd.campus.common.JsonUtils;
 import cn.edu.chd.campus.common.Maps;
 import cn.edu.chd.campus.repository.GenericRepository;
+import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.LinkedHashMap;
@@ -25,16 +26,19 @@ public class AdminService {
 
   private final GenericRepository repository;
   private final OrderService orderService;
+  private final PaymentService paymentService;
   private final PasswordEncoder passwordEncoder;
   private final GuestAccessService guestAccessService;
 
   public AdminService(
       GenericRepository repository,
       OrderService orderService,
+      PaymentService paymentService,
       PasswordEncoder passwordEncoder,
       GuestAccessService guestAccessService) {
     this.repository = repository;
     this.orderService = orderService;
+    this.paymentService = paymentService;
     this.passwordEncoder = passwordEncoder;
     this.guestAccessService = guestAccessService;
   }
@@ -402,20 +406,7 @@ public class AdminService {
   @Transactional
   @Audited(module = "admin", action = "update_order_status")
   public Map<String, Object> updateOrderStatus(Long id, String status) {
-    Map<String, Object> order = repository.findById("orders", id)
-        .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "订单不存在"));
-    if ("secondhand".equals(order.get("type"))) {
-      List<Object> items = JsonUtils.toList(order.get("items"));
-      if (!items.isEmpty()) {
-        Object itemId = ((Map<?, ?>) items.get(0)).get("itemId");
-        if (itemId != null) {
-          repository.updateById("secondhand_items", Maps.longValue(itemId),
-              Map.of("status", "cancelled".equals(status) ? "active" : "sold"));
-        }
-      }
-    }
-    repository.updateById("orders", id, Map.of("status", status));
-    return orderService.normalizeOrder(repository.findById("orders", id).orElseThrow());
+    return orderService.updateOrderStatus(id, status, "admin", null);
   }
 
   public List<Map<String, Object>> drivingSchools(String status) {
@@ -580,27 +571,56 @@ public class AdminService {
   @Transactional
   @Audited(module = "admin", action = "decide_after_sale")
   public Map<String, Object> decideAfterSale(Long id, Map<String, Object> request) {
-    Map<String, Object> row = repository.findById("order_after_sales", id)
+    Map<String, Object> row = repository.queryOne(
+            "SELECT * FROM order_after_sales WHERE id = :id FOR UPDATE",
+            Map.of("id", id))
         .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "After-sales request not found"));
-    String status = Maps.stringValue(request.get("status"), "").trim();
-    if ("approved".equals(status)) {
-      status = "admin_approved";
-    } else if ("rejected".equals(status)) {
-      status = "admin_rejected";
+    String currentStatus = Maps.stringValue(row.get("status"), "");
+    if (!List.of("pending", "merchant_approved", "merchant_rejected").contains(currentStatus)) {
+      throw new BusinessException("After-sales request has already been handled");
     }
-    if (!List.of("admin_approved", "admin_rejected", "completed").contains(status)) {
-      throw new BusinessException("Unsupported after-sales decision");
+
+    String requestedStatus = Maps.stringValue(request.get("status"), "").trim();
+    boolean approved;
+    String status;
+    switch (requestedStatus) {
+      case "approved", "admin_approved" -> {
+        approved = true;
+        status = "admin_approved";
+      }
+      case "rejected", "admin_rejected" -> {
+        approved = false;
+        status = "admin_rejected";
+      }
+      case "completed" -> {
+        approved = true;
+        status = "completed";
+      }
+      default -> throw new BusinessException("Unsupported after-sales decision");
     }
+
+    String reply = Maps.stringValue(request.get("reply"), "");
+    Long orderId = Maps.longValue(row.get("order_id"));
+    if (approved) {
+      Object amountValue = row.get("amount");
+      BigDecimal amount = amountValue == null || String.valueOf(amountValue).isBlank()
+          ? null
+          : Maps.decimalValue(amountValue);
+      Map<String, Object> refund = paymentService.refundForOrder(
+          orderId,
+          amount,
+          reply.isBlank() ? "管理员同意售后" : reply);
+      if (Boolean.TRUE.equals(refund.get("fullyRefunded"))) {
+        String orderStatus = "return".equals(Maps.stringValue(row.get("type"), "")) ? "returned" : "refunded";
+        orderService.completeAfterSale(orderId, orderStatus, "returned".equals(orderStatus));
+      }
+    }
+
     Map<String, Object> updates = new LinkedHashMap<>();
     updates.put("status", status);
-    updates.put("admin_reply", Maps.stringValue(request.get("reply"), ""));
+    updates.put("admin_reply", reply);
     updates.put("admin_handled_at", Timestamp.from(Instant.now()));
     repository.updateById("order_after_sales", id, updates);
-    if ("admin_approved".equals(status) || "completed".equals(status)) {
-      String orderStatus = "return".equals(row.get("type")) ? "returned" : "refunded";
-      repository.updateById("orders", Maps.longValue(row.get("order_id")),
-          Map.of("status", orderStatus, "payment_status", "refund".equals(row.get("type")) ? "refunded" : "paid"));
-    }
     return Maps.api(repository.findById("order_after_sales", id).orElseThrow());
   }
 

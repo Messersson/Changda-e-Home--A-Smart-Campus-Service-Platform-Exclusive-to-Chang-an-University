@@ -54,7 +54,7 @@
             <el-button v-if="row.status === 'processing'" size="small" type="success" @click="updateStatus(row, 'completed')">
               完成
             </el-button>
-            <el-button v-if="row.status === 'pending'" size="small" type="danger" @click="updateStatus(row, 'cancelled')">
+            <el-button v-if="row.status === 'pending' && !isPaid(row)" size="small" type="danger" @click="updateStatus(row, 'cancelled')">
               取消
             </el-button>
           </template>
@@ -91,6 +91,8 @@ const statusType = (status) => {
 }
 
 const statusText = (status) => statusTextMap[status] || status
+
+const isPaid = (order) => (order?.paymentStatus ?? order?.payment_status ?? 'unpaid') === 'paid'
 
 const normalizeOrder = (row) => ({
   ...row,

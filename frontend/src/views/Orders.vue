@@ -377,12 +377,14 @@ const getOrderHint = (order) => {
 
 const canPay = (order) => {
   if (!order) return false
-  if (order.status === 'cancelled' || order.status === 'completed') return false
-  return getPaymentStatus(order) !== 'paid'
+  if (['cancelled', 'completed', 'refunded', 'returned'].includes(order.status)) return false
+  const paymentStatus = getPaymentStatus(order)
+  return paymentStatus !== 'paid' && paymentStatus !== 'refunded'
 }
 
 const canRequestAfterSale = (order) => {
   if (!order?.merchantId && !order?.merchant_id) return false
+  if (!isPaid(order)) return false
   return !['cancelled', 'refunded', 'returned'].includes(order.status)
 }
 

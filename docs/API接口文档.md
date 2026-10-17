@@ -118,7 +118,6 @@ http://127.0.0.1:3000/swagger-ui.html
 - `POST /api/payments/create`
 - `GET /api/payments/{id}`
 - `POST /api/payments/{id}/mock/confirm`
-- `POST /api/payments/{id}/refund`
 
 演示环境默认使用 `mock` 支付通道。
 

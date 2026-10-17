@@ -52,6 +52,9 @@ public class AuthService {
     if (repository.findOne("users", Map.of("student_id", studentId)).isPresent()) {
       throw new BusinessException("This student number has already been registered");
     }
+    if (repository.findOne("users", Map.of("email", email)).isPresent()) {
+      throw new BusinessException("This email has already been registered");
+    }
     return createVerification(email, studentId, "The verification code has been sent to your campus email");
   }
 
@@ -285,11 +288,24 @@ public class AuthService {
       throw new BusinessException("Verification code is invalid or expired");
     }
     Map<String, Object> verification = optionalVerification.get();
+    Instant now = Instant.now();
     Instant expiry = toInstant(verification.get("expiry_time"));
-    if (expiry.isBefore(Instant.now())) {
+    if (!expiry.isAfter(now)) {
       throw new BusinessException("Verification code has expired");
     }
-    repository.updateById("email_verifications", Maps.longValue(verification.get("id")), Map.of("used_at", Timestamp.from(Instant.now())));
+    int consumed = repository.update(
+        """
+        UPDATE email_verifications
+        SET used_at = :usedAt
+        WHERE id = :id AND used_at IS NULL AND expiry_time > :now
+        """,
+        Map.of(
+            "usedAt", Timestamp.from(now),
+            "id", Maps.longValue(verification.get("id")),
+            "now", Timestamp.from(now)));
+    if (consumed != 1) {
+      throw new BusinessException("Verification code is invalid or expired");
+    }
   }
 
   private Instant toInstant(Object value) {

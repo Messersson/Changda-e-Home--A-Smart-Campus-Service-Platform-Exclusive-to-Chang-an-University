@@ -138,7 +138,7 @@ const userStore = useUserStore()
 const profileDialogVisible = ref(false)
 
 const adminShellStyle = {
-  backgroundImage: `linear-gradient(180deg, rgba(11, 18, 35, 0.42), rgba(11, 18, 35, 0.55)), url(${adminConsoleBg})`
+  backgroundImage: `linear-gradient(180deg, rgba(11, 18, 35, 0.42), rgba(11, 18, 35, 0.55)), url("${adminConsoleBg}")`
 }
 
 const activeMenu = computed(() => route.path)
@@ -406,11 +406,45 @@ const handleCommand = async (command) => {
   .admin-aside {
     width: 100% !important;
     margin-bottom: 16px;
+    padding: 12px 14px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+  }
+
+  .admin-aside__summary {
+    display: none;
+  }
+
+  .admin-brand {
+    margin-bottom: 10px;
+  }
+
+  .admin-menu {
+    display: flex;
+    width: max-content;
+    min-width: 100%;
+    border: none;
+  }
+
+  .admin-menu :deep(.el-menu-item) {
+    flex: 0 0 auto;
+    height: 40px;
+    margin: 0 6px 0 0;
+    padding: 0 14px;
+    border-radius: 12px;
+    white-space: nowrap;
   }
 
   .admin-header {
     flex-direction: column;
     align-items: flex-start;
+    padding: 16px 18px;
+  }
+
+  .admin-header__copy h1 {
+    font-size: 24px;
+    margin: 8px 0;
   }
 
   .admin-header__actions {

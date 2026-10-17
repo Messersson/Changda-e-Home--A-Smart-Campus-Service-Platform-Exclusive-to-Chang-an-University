@@ -44,6 +44,9 @@ public class OrderService {
       Map<?, ?> item = (Map<?, ?>) itemObject;
       Long snackId = Maps.longValue(item.get("snackId"));
       int quantity = Maps.intValue(item.get("quantity"), 1);
+      if (quantity <= 0) {
+        throw new BusinessException("Quantity must be greater than 0");
+      }
       Map<String, Object> snack = repository.findById("snacks", snackId)
           .orElseThrow(() -> new BusinessException("Snack does not exist"));
 
@@ -78,6 +81,9 @@ public class OrderService {
   public Map<String, Object> createTutorOrder(Long userId, Map<String, Object> request) {
     Long tutorId = Maps.longValue(request.get("tutorId"));
     int hours = Maps.intValue(request.get("hours"), 1);
+    if (hours <= 0) {
+      throw new BusinessException("Hours must be greater than 0");
+    }
     Map<String, Object> tutor = repository.findById("tutors", tutorId)
         .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "Tutor service is unavailable"));
     if (!"active".equals(tutor.get("status"))) {
@@ -115,6 +121,12 @@ public class OrderService {
     if (userId.equals(Maps.longValue(itemRow.get("user_id")))) {
       throw new BusinessException("You cannot order your own item");
     }
+    int reserved = repository.update(
+        "UPDATE secondhand_items SET status = 'sold' WHERE id = :itemId AND status = 'active'",
+        Map.of("itemId", itemId));
+    if (reserved != 1) {
+      throw new BusinessException(HttpStatus.CONFLICT, "Item is unavailable");
+    }
 
     BigDecimal total = Maps.decimalValue(itemRow.get("price"));
     Map<String, Object> item = new LinkedHashMap<>();
@@ -126,7 +138,6 @@ public class OrderService {
     item.put("subtotal", total);
     Long orderId = createOrder(userId, "secondhand", List.of(item), total,
         required(request, "address"), required(request, "phone"), Maps.stringValue(request.get("remark"), ""), null);
-    repository.updateById("secondhand_items", itemId, Map.of("status", "sold"));
     return Map.of("orderId", orderId, "totalAmount", total);
   }
 
@@ -170,7 +181,9 @@ public class OrderService {
   @Transactional
   @Audited(module = "order", action = "cancel")
   public Map<String, Object> cancelUserOrder(Long userId, Long orderId, String type) {
-    Map<String, Object> order = repository.findById("orders", orderId)
+    Map<String, Object> order = repository.queryOne(
+            "SELECT * FROM orders WHERE id = :orderId FOR UPDATE",
+            Map.of("orderId", orderId))
         .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "Order not found"));
     if (!userId.equals(Maps.longValue(order.get("user_id"))) || !type.equals(order.get("type"))) {
       throw new BusinessException(HttpStatus.NOT_FOUND, "Order not found");
@@ -188,30 +201,69 @@ public class OrderService {
   }
 
   @Transactional
+  public Map<String, Object> updateOrderStatus(
+      Long orderId, String status, String operatorType, Long operatorId) {
+    Map<String, Object> order = repository.queryOne(
+            "SELECT * FROM orders WHERE id = :orderId FOR UPDATE",
+            Map.of("orderId", orderId))
+        .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "Order not found"));
+    String currentStatus = Maps.stringValue(order.get("status"), "");
+    String targetStatus = Maps.stringValue(status, "").trim();
+    if (!Set.of("pending", "processing", "completed", "cancelled").contains(targetStatus)) {
+      throw new BusinessException("Unsupported order status");
+    }
+    Set<String> allowedTargets = switch (currentStatus) {
+      case "pending" -> Set.of("processing", "cancelled");
+      case "processing" -> Set.of("completed");
+      default -> Set.of();
+    };
+    if (!allowedTargets.contains(targetStatus)) {
+      throw new BusinessException("Order status cannot change from " + currentStatus + " to " + targetStatus);
+    }
+    if ("cancelled".equals(targetStatus) && "paid".equals(order.get("payment_status"))) {
+      throw new BusinessException("Paid orders cannot be cancelled before a refund is completed");
+    }
+    if ("cancelled".equals(targetStatus)) {
+      restoreSideEffects(order);
+    }
+    repository.updateById("orders", orderId, Map.of("status", targetStatus));
+    logOrderStatus(orderId, currentStatus, targetStatus, operatorType, operatorId,
+        "Order status updated by " + operatorType);
+    return normalizeOrder(repository.findById("orders", orderId).orElseThrow());
+  }
+
+  @Transactional
   public void addToCart(Long userId, Map<String, Object> request) {
     Long productId = Maps.longValue(request.get("productId"));
     int quantity = Maps.intValue(request.get("quantity"), 1);
-    Map<String, Object> product = repository.findById("supermarket_products", productId)
+    if (quantity <= 0) {
+      throw new BusinessException("Quantity must be greater than 0");
+    }
+    Map<String, Object> existing = repository.queryOne(
+            "SELECT * FROM cart_items WHERE user_id = :userId AND product_id = :productId FOR UPDATE",
+            Map.of("userId", userId, "productId", productId))
+        .orElse(null);
+    Map<String, Object> product = repository.queryOne(
+            "SELECT * FROM supermarket_products WHERE id = :productId FOR UPDATE",
+            Map.of("productId", productId))
         .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "Product not found"));
-    if (Maps.intValue(product.get("stock"), 0) < quantity) {
+    int stock = Maps.intValue(product.get("stock"), 0);
+    if (existing == null) {
+      if (stock < quantity) {
+        throw new BusinessException("Insufficient stock");
+      }
+      Map<String, Object> values = new LinkedHashMap<>();
+      values.put("user_id", userId);
+      values.put("product_id", productId);
+      values.put("quantity", quantity);
+      repository.insert("cart_items", values);
+      return;
+    }
+    int newQuantity = Maps.intValue(existing.get("quantity"), 0) + quantity;
+    if (stock < newQuantity) {
       throw new BusinessException("Insufficient stock");
     }
-    repository.queryOne(
-        "SELECT * FROM cart_items WHERE user_id = :userId AND product_id = :productId",
-        Map.of("userId", userId, "productId", productId))
-        .ifPresentOrElse(existing -> {
-          int newQuantity = Maps.intValue(existing.get("quantity"), 0) + quantity;
-          if (Maps.intValue(product.get("stock"), 0) < newQuantity) {
-            throw new BusinessException("Insufficient stock");
-          }
-          repository.updateById("cart_items", Maps.longValue(existing.get("id")), Map.of("quantity", newQuantity));
-        }, () -> {
-          Map<String, Object> values = new LinkedHashMap<>();
-          values.put("user_id", userId);
-          values.put("product_id", productId);
-          values.put("quantity", quantity);
-          repository.insert("cart_items", values);
-        });
+    repository.updateById("cart_items", Maps.longValue(existing.get("id")), Map.of("quantity", newQuantity));
   }
 
   public Map<String, Object> cart(Long userId) {
@@ -248,14 +300,21 @@ public class OrderService {
       removeFromCart(userId, productId);
       return cart(userId);
     }
-    Map<String, Object> product = repository.findById("supermarket_products", productId)
+    Map<String, Object> existing = repository.queryOne(
+            "SELECT * FROM cart_items WHERE user_id = :userId AND product_id = :productId FOR UPDATE",
+            Map.of("userId", userId, "productId", productId))
+        .orElse(null);
+    Map<String, Object> product = repository.queryOne(
+            "SELECT * FROM supermarket_products WHERE id = :productId FOR UPDATE",
+            Map.of("productId", productId))
         .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "Product not found"));
+    if (existing == null) {
+      return cart(userId);
+    }
     if (Maps.intValue(product.get("stock"), 0) < quantity) {
       throw new BusinessException("Insufficient stock");
     }
-    repository.update(
-        "UPDATE cart_items SET quantity = :quantity WHERE user_id = :userId AND product_id = :productId",
-        Map.of("quantity", quantity, "userId", userId, "productId", productId));
+    repository.updateById("cart_items", Maps.longValue(existing.get("id")), Map.of("quantity", quantity));
     return cart(userId);
   }
 
@@ -290,6 +349,9 @@ public class OrderService {
 
     for (Map<String, Object> row : cartRows) {
       int quantity = Maps.intValue(row.get("quantity"), 0);
+      if (quantity <= 0) {
+        throw new BusinessException("Cart quantity must be greater than 0");
+      }
       int stock = Maps.intValue(row.get("stock"), 0);
       if (stock < quantity) {
         throw new BusinessException(row.get("name") + " has insufficient stock");
@@ -332,10 +394,19 @@ public class OrderService {
   @Transactional
   @Audited(module = "order", action = "after_sale_request")
   public Map<String, Object> requestAfterSale(Long userId, Long orderId, Map<String, Object> request) {
-    Map<String, Object> order = repository.findById("orders", orderId)
+    Map<String, Object> order = repository.queryOne(
+            "SELECT * FROM orders WHERE id = :orderId FOR UPDATE",
+            Map.of("orderId", orderId))
         .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "Order not found"));
     if (!userId.equals(Maps.longValue(order.get("user_id")))) {
       throw new BusinessException(HttpStatus.NOT_FOUND, "Order not found");
+    }
+    if (!"paid".equals(order.get("payment_status"))) {
+      throw new BusinessException("Only paid orders support after-sales requests");
+    }
+    String orderStatus = Maps.stringValue(order.get("status"), "");
+    if (List.of("cancelled", "refunded", "returned").contains(orderStatus)) {
+      throw new BusinessException("This order status does not support after-sales requests");
     }
     Long merchantId = Maps.longValue(order.get("merchant_id"));
     if (merchantId == null) {
@@ -345,16 +416,57 @@ public class OrderService {
     if (!"refund".equals(type) && !"return".equals(type)) {
       throw new BusinessException("After-sales type must be refund or return");
     }
+    BigDecimal amount = Maps.decimalValue(request.getOrDefault("amount", order.get("total_amount")));
+    BigDecimal orderAmount = Maps.decimalValue(order.get("total_amount"));
+    BigDecimal refundedAmount = Maps.decimalValue(repository.queryOne(
+            """
+            SELECT COALESCE(SUM(amount), 0) AS refunded_amount
+            FROM refunds
+            WHERE order_id = :orderId AND status = 'success'
+            """,
+            Map.of("orderId", orderId))
+        .map(row -> row.get("refunded_amount"))
+        .orElse(BigDecimal.ZERO));
+    BigDecimal refundableAmount = orderAmount.subtract(refundedAmount);
+    if (amount.compareTo(BigDecimal.ZERO) <= 0 || amount.compareTo(refundableAmount) > 0) {
+      throw new BusinessException("After-sales amount is invalid");
+    }
+    if (repository.count(
+            "order_after_sales",
+            Map.of("order_id", orderId, "status", List.of("pending", "merchant_approved", "merchant_rejected"))) > 0) {
+      throw new BusinessException("An after-sales request is already in progress");
+    }
     Map<String, Object> values = new LinkedHashMap<>();
     values.put("order_id", orderId);
     values.put("user_id", userId);
     values.put("merchant_id", merchantId);
     values.put("type", type);
     values.put("reason", required(request, "reason"));
-    values.put("amount", Maps.decimalValue(request.getOrDefault("amount", order.get("total_amount"))));
+    values.put("amount", amount);
     values.put("status", "pending");
     Long id = repository.insert("order_after_sales", values);
     return Maps.api(repository.findById("order_after_sales", id).orElseThrow());
+  }
+
+  @Transactional
+  public void completeAfterSale(Long orderId, String orderStatus, boolean restoreStock) {
+    Map<String, Object> order = repository.queryOne(
+            "SELECT * FROM orders WHERE id = :orderId FOR UPDATE",
+            Map.of("orderId", orderId))
+        .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "Order not found"));
+    if (!List.of("refunded", "returned").contains(orderStatus)) {
+      throw new BusinessException("Unsupported after-sales order status");
+    }
+    String currentStatus = Maps.stringValue(order.get("status"), "");
+    if (orderStatus.equals(currentStatus)) {
+      return;
+    }
+    if (restoreStock) {
+      restoreSideEffects(order);
+    }
+    repository.updateById("orders", orderId, Map.of("status", orderStatus));
+    logOrderStatus(orderId, currentStatus, orderStatus, "admin", null,
+        restoreStock ? "Return completed after refund" : "Refund completed after approval");
   }
 
   public List<Map<String, Object>> userAfterSales(Long userId) {
@@ -415,7 +527,9 @@ public class OrderService {
         Map<?, ?> item = (Map<?, ?>) itemObject;
         Long productId = Maps.longValue(item.get("productId"));
         int quantity = Maps.intValue(item.get("quantity"), 0);
-        Map<String, Object> product = repository.findById("supermarket_products", productId).orElse(null);
+        Map<String, Object> product = repository.queryOne(
+            "SELECT * FROM supermarket_products WHERE id = :productId FOR UPDATE",
+            Map.of("productId", productId)).orElse(null);
         if (product == null) {
           continue;
         }
@@ -428,7 +542,9 @@ public class OrderService {
     if ("secondhand".equals(type) && !items.isEmpty()) {
       Object itemId = ((Map<?, ?>) items.get(0)).get("itemId");
       if (itemId != null) {
-        repository.updateById("secondhand_items", Maps.longValue(itemId), Map.of("status", "active"));
+        repository.update(
+            "UPDATE secondhand_items SET status = 'active' WHERE id = :itemId AND status = 'sold'",
+            Map.of("itemId", Maps.longValue(itemId)));
       }
     }
   }

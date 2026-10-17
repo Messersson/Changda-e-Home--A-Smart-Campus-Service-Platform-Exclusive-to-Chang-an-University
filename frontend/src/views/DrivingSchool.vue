@@ -4,7 +4,8 @@
       <h2>驾校板块</h2>
     </div>
 
-    <el-row :gutter="20" class="school-list">
+    <el-empty v-if="schools.length === 0" description="暂无驾校信息" />
+    <el-row v-else :gutter="20" class="school-list">
       <el-col v-for="school in schools" :key="school.id" :xs="24" :sm="12" :md="8">
         <el-card class="school-card" shadow="hover">
           <div class="school-header">

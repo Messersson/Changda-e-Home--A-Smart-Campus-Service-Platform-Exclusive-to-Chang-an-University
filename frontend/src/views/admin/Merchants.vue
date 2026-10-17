@@ -105,8 +105,22 @@
             </el-table-column>
             <el-table-column label="操作" width="180" fixed="right">
               <template #default="{ row }">
-                <el-button size="small" type="success" @click="decide(row, 'approved')">同意</el-button>
-                <el-button size="small" type="danger" @click="decide(row, 'rejected')">拒绝</el-button>
+                <el-button
+                  v-if="canDecideAfterSale(row)"
+                  size="small"
+                  type="success"
+                  @click="decide(row, 'approved')"
+                >
+                  同意
+                </el-button>
+                <el-button
+                  v-if="canDecideAfterSale(row)"
+                  size="small"
+                  type="danger"
+                  @click="decide(row, 'rejected')"
+                >
+                  拒绝
+                </el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -199,6 +213,9 @@ const toggleMerchant = async (row) => {
   ElMessage.success('商家状态已更新')
   loadMerchants()
 }
+
+const canDecideAfterSale = (row) =>
+  ['pending', 'merchant_approved', 'merchant_rejected'].includes(row.status)
 
 const decide = async (row, status) => {
   const label = status === 'approved' ? '同意' : '拒绝'

@@ -8,6 +8,7 @@ import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
@@ -45,7 +46,9 @@ public class PaymentService {
     if (!mockEnabled) {
       throw new BusinessException(HttpStatus.FORBIDDEN, "模拟支付已关闭");
     }
-    Map<String, Object> order = repository.findById("orders", orderId)
+    Map<String, Object> order = repository.queryOne(
+            "SELECT * FROM orders WHERE id = :orderId FOR UPDATE",
+            Map.of("orderId", orderId))
         .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "订单不存在"));
     if (!userId.equals(Maps.longValue(order.get("user_id")))) {
       throw new BusinessException(HttpStatus.NOT_FOUND, "订单不存在");
@@ -53,8 +56,14 @@ public class PaymentService {
     if ("cancelled".equals(order.get("status"))) {
       throw new BusinessException("订单已取消，无法支付");
     }
+    if (List.of("refunded", "returned").contains(Maps.stringValue(order.get("status"), ""))) {
+      throw new BusinessException("订单已退款或退货，无法支付");
+    }
     if ("paid".equals(order.get("payment_status"))) {
       throw new BusinessException("订单已支付，无需重复支付");
+    }
+    if ("refunded".equals(order.get("payment_status"))) {
+      throw new BusinessException("订单已退款，无法重复支付");
     }
 
     Map<String, Object> existing = repository.queryOne(
@@ -94,54 +103,131 @@ public class PaymentService {
   @Transactional
   @Audited(module = "payment", action = "mock_confirm")
   public Map<String, Object> confirmMock(Long userId, Long id) {
-    Map<String, Object> payment = repository.findById("payments", id)
+    Map<String, Object> snapshot = repository.findById("payments", id)
         .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "支付单不存在"));
+    if (!userId.equals(Maps.longValue(snapshot.get("user_id")))) {
+      throw new BusinessException(HttpStatus.NOT_FOUND, "支付单不存在");
+    }
+    Long orderId = Maps.longValue(snapshot.get("order_id"));
+    Map<String, Object> order = lockOrder(orderId);
+    Map<String, Object> payment = lockPayment(id);
+    if (!orderId.equals(Maps.longValue(payment.get("order_id")))) {
+      throw new BusinessException(HttpStatus.CONFLICT, "支付单关联订单已变更");
+    }
     if (!userId.equals(Maps.longValue(payment.get("user_id")))) {
       throw new BusinessException(HttpStatus.NOT_FOUND, "支付单不存在");
     }
     if (!"mock".equals(payment.get("provider")) || !"created".equals(payment.get("status"))) {
       throw new BusinessException("当前支付单状态不支持确认支付");
     }
+    if (!userId.equals(Maps.longValue(order.get("user_id")))) {
+      throw new BusinessException(HttpStatus.NOT_FOUND, "订单不存在");
+    }
+    if (List.of("cancelled", "refunded", "returned").contains(Maps.stringValue(order.get("status"), ""))) {
+      throw new BusinessException("订单状态已变更，无法确认支付");
+    }
+    if ("paid".equals(order.get("payment_status"))) {
+      throw new BusinessException("订单已支付，无需重复支付");
+    }
+    if ("refunded".equals(order.get("payment_status"))) {
+      throw new BusinessException("订单已退款，无法确认支付");
+    }
     Timestamp paidAt = Timestamp.from(Instant.now());
     repository.updateById("payments", id, Map.of("status", "paid", "paid_at", paidAt));
-    repository.updateById("orders", Maps.longValue(payment.get("order_id")), Map.of("payment_status", "paid", "paid_at", paidAt));
+    repository.updateById("orders", orderId, Map.of("payment_status", "paid", "paid_at", paidAt));
     return normalize(repository.findById("payments", id).orElseThrow());
   }
 
   @Transactional
-  @Audited(module = "payment", action = "refund")
-  public Map<String, Object> refund(Long userId, Long id, Map<String, Object> request) {
-    Map<String, Object> payment = repository.findById("payments", id)
+  @Audited(module = "payment", action = "admin_refund")
+  public Map<String, Object> refundForOrder(Long orderId, BigDecimal amount, String reason) {
+    Map<String, Object> order = lockOrder(orderId);
+    validateRefundableOrder(order);
+    Map<String, Object> payment = repository.queryOne(
+            """
+            SELECT * FROM payments
+            WHERE order_id = :orderId AND status = 'paid'
+            ORDER BY paid_at DESC, id DESC
+            LIMIT 1 FOR UPDATE
+            """,
+            Map.of("orderId", orderId))
+        .orElseThrow(() -> new BusinessException("该订单没有可退款的支付单"));
+    return refundPayment(payment, Maps.longValue(payment.get("user_id")), amount, reason);
+  }
+
+  private Map<String, Object> lockPayment(Long id) {
+    return repository.queryOne(
+            "SELECT * FROM payments WHERE id = :id FOR UPDATE",
+            Map.of("id", id))
         .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "支付单不存在"));
-    if (!userId.equals(Maps.longValue(payment.get("user_id")))) {
-      throw new BusinessException(HttpStatus.NOT_FOUND, "支付单不存在");
+  }
+
+  private Map<String, Object> lockOrder(Long orderId) {
+    return repository.queryOne(
+            "SELECT * FROM orders WHERE id = :orderId FOR UPDATE",
+            Map.of("orderId", orderId))
+        .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "订单不存在"));
+  }
+
+  private void validateRefundableOrder(Map<String, Object> order) {
+    if (!"paid".equals(Maps.stringValue(order.get("payment_status"), ""))) {
+      throw new BusinessException("订单当前支付状态不支持退款");
     }
-    if (!"paid".equals(payment.get("status"))) {
+    if (List.of("refunded", "returned").contains(Maps.stringValue(order.get("status"), ""))) {
+      throw new BusinessException("订单已退款或退货，无法重复退款");
+    }
+  }
+
+  private Map<String, Object> refundPayment(
+      Map<String, Object> payment,
+      Long userId,
+      BigDecimal requestedAmount,
+      String reason) {
+    if (!"paid".equals(Maps.stringValue(payment.get("status"), ""))) {
       throw new BusinessException("当前支付单状态不支持退款");
     }
-    BigDecimal amount = request.containsKey("amount")
-        ? Maps.decimalValue(request.get("amount"))
-        : Maps.decimalValue(payment.get("amount"));
-    if (amount.compareTo(BigDecimal.ZERO) <= 0 || amount.compareTo(Maps.decimalValue(payment.get("amount"))) > 0) {
+    Long paymentId = Maps.longValue(payment.get("id"));
+    BigDecimal paidAmount = Maps.decimalValue(payment.get("amount"));
+    BigDecimal refundedAmount = Maps.decimalValue(repository.queryOne(
+            """
+            SELECT COALESCE(SUM(amount), 0) AS refunded_amount
+            FROM refunds
+            WHERE payment_id = :paymentId AND status = 'success'
+            """,
+            Map.of("paymentId", paymentId))
+        .map(row -> row.get("refunded_amount"))
+        .orElse(BigDecimal.ZERO));
+    BigDecimal refundableAmount = paidAmount.subtract(refundedAmount);
+    if (refundableAmount.compareTo(BigDecimal.ZERO) <= 0) {
+      throw new BusinessException("该支付单已全额退款");
+    }
+    BigDecimal amount = requestedAmount == null ? refundableAmount : requestedAmount;
+    if (amount.compareTo(BigDecimal.ZERO) <= 0 || amount.compareTo(refundableAmount) > 0) {
       throw new BusinessException("退款金额不合法");
     }
     Timestamp refundedAt = Timestamp.from(Instant.now());
     Map<String, Object> values = new LinkedHashMap<>();
-    values.put("payment_id", id);
+    values.put("payment_id", paymentId);
     values.put("order_id", payment.get("order_id"));
     values.put("user_id", userId);
     values.put("provider", payment.get("provider"));
-    values.put("out_refund_no", "R" + id + "-" + UUID.randomUUID().toString().substring(0, 8));
+    values.put("out_refund_no", "R" + paymentId + "-" + UUID.randomUUID().toString().substring(0, 8));
     values.put("refund_no", "MOCK-" + UUID.randomUUID().toString().substring(0, 8));
     values.put("amount", amount);
-    values.put("reason", Maps.stringValue(request.get("reason"), "用户申请退款"));
+    values.put("reason", reason == null || reason.isBlank() ? "退款" : reason);
     values.put("status", "success");
     values.put("raw_response", "{\"mock\":true,\"success\":true}");
     values.put("refunded_at", refundedAt);
     Long refundId = repository.insert("refunds", values);
-    repository.updateById("payments", id, Map.of("status", "refunded"));
-    repository.updateById("orders", Maps.longValue(payment.get("order_id")), Map.of("payment_status", "refunded"));
-    return Maps.api(repository.findById("refunds", refundId).orElseThrow());
+    BigDecimal totalRefunded = refundedAmount.add(amount);
+    boolean fullyRefunded = totalRefunded.compareTo(paidAmount) >= 0;
+    if (fullyRefunded) {
+      repository.updateById("payments", paymentId, Map.of("status", "refunded"));
+      repository.updateById("orders", Maps.longValue(payment.get("order_id")), Map.of("payment_status", "refunded"));
+    }
+    Map<String, Object> result = Maps.api(repository.findById("refunds", refundId).orElseThrow());
+    result.put("fullyRefunded", fullyRefunded);
+    return result;
   }
 
   private Map<String, Object> normalize(Map<String, Object> payment) {

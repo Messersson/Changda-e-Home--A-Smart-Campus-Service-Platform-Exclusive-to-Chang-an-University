@@ -63,7 +63,7 @@
             <el-button v-if="row.status === 'processing'" type="success" size="small" @click="updateStatus(row, 'completed')">
               完成
             </el-button>
-            <el-button v-if="row.status === 'pending'" type="danger" size="small" @click="updateStatus(row, 'cancelled')">
+            <el-button v-if="row.status === 'pending' && !isPaid(row)" type="danger" size="small" @click="updateStatus(row, 'cancelled')">
               取消
             </el-button>
           </template>
@@ -156,6 +156,8 @@ const getStatusType = (status) => {
 }
 
 const getStatusText = (status) => statusTextMap[status] || status
+
+const isPaid = (order) => (order?.paymentStatus ?? order?.payment_status ?? 'unpaid') === 'paid'
 
 const getItemName = (item) => {
   return item.snackName || item.productName || item.tutorName || item.title || item.schoolName || '未命名内容'

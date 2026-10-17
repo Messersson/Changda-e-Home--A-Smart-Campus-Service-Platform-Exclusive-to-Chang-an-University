@@ -1,5 +1,6 @@
 <template>
   <div class="home-shell campus-page" :style="homeShellStyle">
+    <a class="skip-link" href="#campus-main">跳转到主要内容</a>
     <div class="home-shell__glow home-shell__glow--one"></div>
     <div class="home-shell__glow home-shell__glow--two"></div>
 
@@ -15,9 +16,16 @@
         </div>
 
         <div class="home-actions">
-          <div class="status-pill glass-panel">
-            <span class="status-pill__dot"></span>
-            校园服务在线
+          <div
+            class="status-pill glass-panel"
+            :aria-label="connectionLabel"
+            role="status"
+          >
+            <span
+              class="status-pill__dot"
+              :class="{ 'is-offline': connectionStatus === 'disconnected', 'is-checking': !isConnected && connectionStatus !== 'disconnected' }"
+            ></span>
+            {{ connectionLabel }}
           </div>
 
           <el-dropdown @command="handleCommand">
@@ -46,7 +54,7 @@
       </el-header>
 
       <el-container class="home-body">
-        <el-aside width="248px" class="home-aside glass-panel">
+        <el-aside width="248px" class="home-aside glass-panel" aria-label="校园功能导航">
           <div class="aside-title">
             <span>功能导航</span>
             <small>Campus Modules</small>
@@ -93,7 +101,7 @@
           </div>
         </el-aside>
 
-        <el-main class="home-main">
+        <el-main id="campus-main" class="home-main">
           <div class="hero-banner glass-panel">
             <div>
               <div class="brand-chip brand-chip--dark">Campus Flow</div>
@@ -132,30 +140,52 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import UserProfileDialog from '@/components/UserProfileDialog.vue'
 import campusUserBg from '@/assets/bg-campus-user.svg'
+import connectionManager from '@/utils/connectionManager'
 
 const router = useRouter()
 const route = useRoute()
 const userStore = useUserStore()
 const profileDialogVisible = ref(false)
+const connectionStatus = ref(connectionManager.getConnectionStatus().status)
 
 const homeShellStyle = {
-  backgroundImage: `linear-gradient(180deg, rgba(255, 255, 255, 0.38), rgba(255, 255, 255, 0.46)), url(${campusUserBg})`
+  backgroundImage: `linear-gradient(180deg, rgba(255, 255, 255, 0.38), rgba(255, 255, 255, 0.46)), url("${campusUserBg}")`
 }
 
 const activeMenu = computed(() => route.path)
 const isGuest = computed(() => !userStore.token)
 const isMerchant = computed(() => userStore.user?.role === 'merchant')
+const isConnected = computed(() => connectionStatus.value === 'connected')
+const connectionLabel = computed(() => {
+  if (connectionStatus.value === 'connected') return '校园服务在线'
+  if (connectionStatus.value === 'connecting') return '正在连接服务'
+  if (connectionStatus.value === 'checking') return '正在检查服务'
+  return '服务暂不可用'
+})
 const roleLabel = computed(() => {
   if (isGuest.value) return '游客只读'
   if (userStore.user?.role === 'admin') return '管理员'
   if (userStore.user?.role === 'merchant') return '商家'
   return '同学'
+})
+
+const updateConnectionStatus = (status) => {
+  connectionStatus.value = status
+}
+
+onMounted(() => {
+  connectionManager.addConnectionListener(updateConnectionStatus)
+  updateConnectionStatus(connectionManager.getConnectionStatus().status)
+})
+
+onUnmounted(() => {
+  connectionManager.removeConnectionListener(updateConnectionStatus)
 })
 
 const handleMenuSelect = (index) => {
@@ -197,6 +227,24 @@ const handleCommand = async (command) => {
 </script>
 
 <style scoped>
+.skip-link {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 20;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: #fff;
+  color: #13213f;
+  box-shadow: var(--app-shadow);
+  transform: translateY(calc(-100% - 16px));
+  transition: transform 0.2s ease;
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+}
+
 .home-shell {
   position: relative;
   min-height: 100vh;
@@ -399,6 +447,7 @@ const handleCommand = async (command) => {
 }
 
 .home-main {
+  min-width: 0;
   padding: 0;
   background: transparent;
 }
@@ -455,6 +504,16 @@ const handleCommand = async (command) => {
   font-size: 13px;
 }
 
+.status-pill__dot.is-offline {
+  background: #ffb454;
+  box-shadow: 0 0 0 6px rgba(255, 180, 84, 0.18);
+}
+
+.status-pill__dot.is-checking {
+  background: #ffd166;
+  box-shadow: 0 0 0 6px rgba(255, 209, 102, 0.18);
+}
+
 @media (max-width: 1100px) {
   .home-header,
   .hero-banner {
@@ -481,6 +540,221 @@ const handleCommand = async (command) => {
   .home-aside {
     width: 100% !important;
     margin-bottom: 16px;
+  }
+}
+
+@media (max-width: 640px) {
+  .home-shell {
+    padding: 12px;
+    background-attachment: scroll;
+  }
+
+  .home-shell__glow {
+    display: none;
+  }
+
+  .home-layout {
+    min-height: calc(100vh - 24px);
+  }
+
+  .home-header {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+    padding: 14px 12px;
+    border-radius: 20px;
+  }
+
+  .home-brand {
+    min-width: 0;
+    gap: 9px;
+  }
+
+  .home-brand__icon {
+    flex: 0 0 40px;
+    width: 40px;
+    height: 40px;
+    border-radius: 13px;
+    font-size: 19px;
+  }
+
+  .home-brand .brand-chip {
+    display: none;
+  }
+
+  .home-brand h1 {
+    margin: 0;
+    font-size: clamp(14px, 4.1vw, 19px);
+    line-height: 1.35;
+    white-space: nowrap;
+  }
+
+  .home-brand p {
+    display: none;
+  }
+
+  .home-actions {
+    flex: 0 0 auto;
+    width: auto;
+    gap: 8px;
+  }
+
+  .status-pill {
+    width: 32px;
+    height: 32px;
+    flex: 0 0 32px;
+    justify-content: center;
+    padding: 0;
+    font-size: 0;
+  }
+
+  .status-pill__dot {
+    width: 8px;
+    height: 8px;
+    box-shadow: 0 0 0 4px rgba(72, 240, 174, 0.18);
+  }
+
+  .status-pill__dot.is-offline {
+    box-shadow: 0 0 0 4px rgba(255, 180, 84, 0.18);
+  }
+
+  .status-pill__dot.is-checking {
+    box-shadow: 0 0 0 4px rgba(255, 209, 102, 0.18);
+  }
+
+  .user-info {
+    gap: 6px;
+    padding: 5px 7px;
+    border-radius: 14px;
+  }
+
+  .user-copy {
+    max-width: 58px;
+    min-width: 0;
+  }
+
+  .user-copy strong {
+    overflow: hidden;
+    font-size: 12px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .user-copy span {
+    display: none;
+  }
+
+  .home-body {
+    display: block;
+  }
+
+  .home-aside {
+    align-self: auto;
+    overflow-x: auto;
+    min-height: 0;
+    height: auto !important;
+    flex: none;
+    margin-bottom: 12px;
+    padding: 7px 8px 5px;
+    border-radius: 18px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-color: rgba(79, 124, 255, 0.42) transparent;
+    scrollbar-width: thin;
+  }
+
+  .home-aside::-webkit-scrollbar {
+    height: 3px;
+  }
+
+  .home-aside::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: rgba(79, 124, 255, 0.42);
+  }
+
+  .aside-title,
+  .aside-footer {
+    display: none;
+  }
+
+  .home-menu {
+    display: flex;
+    width: max-content;
+    min-width: 100%;
+    border: 0;
+  }
+
+  .home-menu :deep(.el-menu-item) {
+    flex: 0 0 auto;
+    height: 42px;
+    margin: 0 4px 0 0;
+    padding: 0 12px;
+    border-radius: 13px;
+    white-space: nowrap;
+  }
+
+  .home-menu :deep(.el-menu-item:hover) {
+    transform: none;
+  }
+
+  .hero-banner {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+    margin-bottom: 12px;
+    padding: 18px;
+    border-radius: 20px;
+  }
+
+  .hero-banner h2 {
+    margin: 10px 0 8px;
+    font-size: clamp(20px, 5.5vw, 26px);
+  }
+
+  .hero-banner p {
+    font-size: 14px;
+    line-height: 1.65;
+  }
+
+  .hero-stats {
+    gap: 8px;
+  }
+
+  .hero-stat {
+    flex: 1;
+    min-width: 0;
+    padding: 11px 8px;
+    border-radius: 15px;
+  }
+
+  .hero-stat strong {
+    font-size: 21px;
+  }
+
+  .hero-stat span {
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 380px) {
+  .status-pill {
+    display: none;
+  }
+
+  .home-header {
+    padding-inline: 10px;
+  }
+
+  .home-brand {
+    gap: 7px;
+  }
+
+  .home-brand h1 {
+    font-size: 14px;
+  }
+
+  .user-copy {
+    max-width: 48px;
   }
 }
 </style>

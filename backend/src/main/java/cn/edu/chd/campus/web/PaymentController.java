@@ -38,11 +38,6 @@ public class PaymentController {
     return ApiResponse.ok(paymentService.confirmMock(SecuritySupport.user(authentication).id(), id), "支付成功");
   }
 
-  @PostMapping("/{id}/refund")
-  public ApiResponse<Map<String, Object>> refund(Authentication authentication, @PathVariable Long id, @RequestBody(required = false) Map<String, Object> request) {
-    return ApiResponse.ok(paymentService.refund(SecuritySupport.user(authentication).id(), id, Maps.mutable(request)), "退款成功");
-  }
-
   @PostMapping("/alipay/notify")
   public String alipayNotify() {
     return "success";

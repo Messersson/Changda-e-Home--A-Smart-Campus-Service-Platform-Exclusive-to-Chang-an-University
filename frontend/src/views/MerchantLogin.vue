@@ -79,7 +79,7 @@ const formRef = ref(null)
 const loading = ref(false)
 
 const pageStyle = {
-  backgroundImage: `linear-gradient(135deg, rgba(12, 30, 48, 0.82), rgba(33, 73, 88, 0.68)), url(${campusLoginBg})`
+  backgroundImage: `linear-gradient(135deg, rgba(12, 30, 48, 0.82), rgba(33, 73, 88, 0.68)), url("${campusLoginBg}")`
 }
 
 const form = reactive({

@@ -413,7 +413,7 @@ onMounted(() => {
 .dashboard-hero h2 {
   margin: 14px 0 10px;
   font-size: 30px;
-  color: #14213d;
+  color: #ffffff;
 }
 
 .dashboard-hero p {
